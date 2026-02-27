@@ -1232,6 +1232,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
 }
 
 .profile-tag-remove {
@@ -1246,6 +1247,8 @@ body {
 .category-modal-tag {
   border: none;
   cursor: pointer;
+  max-width: 100%;
+  white-space: normal;
 }
 
 .category-modal-tag.active {
@@ -1785,15 +1788,19 @@ body {
 .categories-custom-input-wrap {
   width: 100%;
   align-items: stretch;
+  flex-wrap: wrap;
 }
 
 .categories-custom-input-wrap .modal-input {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 1 420px;
+  min-width: 220px;
+  width: auto;
 }
 
 .categories-custom-input-wrap .btn-modal-save {
   flex: 0 0 auto;
+  padding: 6px 24px;
+  min-width: 150px;
 }
 
 .categories-modal-content .modal-buttons {
