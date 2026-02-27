@@ -1,3 +1,41 @@
+<?php
+$homepageCategories = [
+  'Цифровая живопись',
+  'Графический дизайн',
+  'Иллюстрация',
+  'Живопись и графика',
+  '3D-моделирование и визуализация',
+  'Скульптура и 3D-печать',
+  'Каллиграфия и леттеринг',
+  'Все',
+];
+
+try {
+  $conn = new mysqli('MySQL-8.0', 'root', '');
+  if (!$conn->connect_error) {
+    $conn->set_charset('utf8mb4');
+    if ($conn->select_db('artlance')) {
+      $sql = 'SELECT TRIM(categories) AS categories, MAX(is_default) AS is_default FROM categories WHERE TRIM(categories) <> "" GROUP BY TRIM(categories) ORDER BY MAX(is_default) DESC, TRIM(categories) ASC';
+      $res = $conn->query($sql);
+      if ($res !== false) {
+        $loaded = [];
+        while ($row = $res->fetch_assoc()) {
+          $name = trim((string) ($row['categories'] ?? ''));
+          if ($name === '' || mb_strtolower($name) === 'прочее') {
+            continue;
+          }
+          $loaded[$name] = $name;
+        }
+        if (count($loaded) > 0) {
+          $homepageCategories = array_values($loaded);
+        }
+      }
+    }
+  }
+} catch (Throwable $e) {
+  // fallback к дефолтным категориям выше
+}
+?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -95,14 +133,9 @@
     <div class="container py-5">
       <h2 class="about-title mb-4 text-start">Категории</h2>
       <div class="d-flex flex-wrap justify-content-center gap-2 categories-container">
-        <span class="category-tag">Цифровая живопись</span>
-        <span class="category-tag">Графический дизайн</span>
-        <span class="category-tag">Иллюстрация</span>
-        <span class="category-tag">Живопись и графика</span>
-        <span class="category-tag">3D-моделирование и визуализация</span>
-        <span class="category-tag">Скульптура и 3D-печать</span>
-        <span class="category-tag">Каллиграфия и леттеринг</span>
-        <span class="category-tag">Прочее</span>
+        <?php foreach ($homepageCategories as $categoryName): ?>
+          <span class="category-tag"><?php echo htmlspecialchars((string) $categoryName, ENT_QUOTES, 'UTF-8'); ?></span>
+        <?php endforeach; ?>
       </div>
     </div>
   </section>
