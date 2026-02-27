@@ -486,6 +486,13 @@ body {
   box-shadow: none !important;
 }
 
+
+.category-buttons .category-button,
+.category-buttons .category-button:hover,
+.category-buttons .category-button:focus {
+  text-decoration: none;
+}
+
 /* Filters Section */
 .filters-section {
   background: #fff;
@@ -565,9 +572,18 @@ body {
 }
 
 .service-card-bottom {
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
+  position: relative;
+  min-height: 40px;
+}
+
+.service-card-bottom .service-card-price {
+  margin-right: 110px;
+}
+
+.service-card-bottom .service-card-time {
+  position: absolute;
+  right: 0;
+  bottom: 6px;
 }
 
 .service-card-price {

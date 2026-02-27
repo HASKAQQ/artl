@@ -152,7 +152,7 @@ try {
         <?php if (count($services) > 0): ?>
           <?php foreach ($services as $index => $service): ?>
             <div class="col-lg-4 col-md-6 service-card-column <?php echo $index >= $initialVisibleServices ? 'd-none' : ''; ?>">
-              <a href="<?php echo $service['artist_id'] > 0 ? 'profile-artist.php?user_id=' . (int) $service['artist_id'] : '#'; ?>" class="text-decoration-none">
+              <a href="order.php?service_id=<?php echo (int) $service['id']; ?>" class="text-decoration-none">
                 <div class="service-card-item">
                   <img src="<?php echo htmlspecialchars($service['image_path'] !== '' ? $service['image_path'] : 'src/image/Rectangle 55.png', ENT_QUOTES, 'UTF-8'); ?>" alt="Услуга" class="service-card-image">
                   <div class="service-card-overlay">
