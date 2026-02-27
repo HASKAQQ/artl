@@ -1194,6 +1194,11 @@ body {
   height: 48px;
 }
 
+.contact-link-btn .contact-link-email-icon {
+  width: 52px;
+  height: 52px;
+}
+
 .contact-link-btn:not(.is-empty):hover {
   transform: scale(1.08);
 }

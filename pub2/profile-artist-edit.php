@@ -966,9 +966,10 @@ $socialLinks = [
     'vk' => $vkLink,
 ];
 
-$defaultCategoriesJs = json_encode($defaultCategories, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT);
-$selectedDefaultCategoryIdsJs = json_encode(array_values($selectedDefaultCategoryIds), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT);
-$selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT);
+$jsonFlags = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT;
+$defaultCategoriesJs = json_encode($defaultCategories, $jsonFlags);
+$selectedDefaultCategoryIdsJs = json_encode(array_values($selectedDefaultCategoryIds), $jsonFlags);
+$selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories), $jsonFlags);
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -1021,8 +1022,8 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
             </div>
           </div>
           <div class="profile-contacts">
-            <button type="button" class="contact-link-btn<?php echo trim((string) $socialLinks['vk']) === '' ? ' is-empty' : ''; ?>" onclick="openSocialLinkModal('vk', <?php echo json_encode($socialLinks['vk'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/vk-icon.svg" alt="VK"></button>
-            <button type="button" class="contact-link-btn<?php echo trim((string) $socialLinks['email']) === '' ? ' is-empty' : ''; ?>" onclick="openSocialLinkModal('email', <?php echo json_encode($socialLinks['email'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></button>
+            <button type="button" class="contact-link-btn<?php echo trim((string) $socialLinks['vk']) === '' ? ' is-empty' : ''; ?>" onclick="openSocialLinkModal('vk', <?php echo json_encode($socialLinks['vk'], $jsonFlags); ?>)"><img src="src/image/icons/vk-icon.svg" alt="VK"></button>
+            <button type="button" class="contact-link-btn<?php echo trim((string) $socialLinks['email']) === '' ? ' is-empty' : ''; ?>" onclick="openSocialLinkModal('email', <?php echo json_encode($socialLinks['email'], $jsonFlags); ?>)"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email" class="contact-link-email-icon"></button>
           </div>
           <div class="profile-balance">
             <span class="balance-label">Баланс, руб</span>

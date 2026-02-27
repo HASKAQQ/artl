@@ -198,7 +198,7 @@ $vkHref = $userVk !== '' ? $userVk : '';
               <img src="src/image/icons/vk-icon.svg" alt="VK">
             </a>
             <a class="contact-link-btn<?php echo $emailHref === '' ? ' is-empty' : ''; ?>" <?php echo $emailHref === '' ? 'aria-disabled="true"' : 'href="' . htmlspecialchars($emailHref, ENT_QUOTES, 'UTF-8') . '"'; ?>>
-              <img src="src/image/icons/icons8-почта-100 1.svg" alt="Email">
+              <img src="src/image/icons/icons8-почта-100 1.svg" alt="Email" class="contact-link-email-icon">
             </a>
           </div>
         </div>
