@@ -1906,6 +1906,14 @@ body {
   color: #fff;
 }
 
+.balance-unavailable-message {
+  margin: 12px 0 0;
+  color: #2f2f2f;
+  font-size: 16px;
+  line-height: 1.4;
+  text-align: center;
+}
+
 
 
 .service-modal-form {

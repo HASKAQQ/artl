@@ -1036,8 +1036,8 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
               <span>0</span>
             </div>
             <div class="balance-buttons d-flex justify-content-between flex-wrap">
-              <button class="btn-balance">Вывести</button>
-              <button class="btn-balance">Пополнить</button>
+              <button class="btn-balance" type="button" id="balanceWithdrawBtn">Вывести</button>
+              <button class="btn-balance" type="button" id="balanceTopUpBtn">Пополнить</button>
             </div>
           </div>
         </div>
@@ -1376,6 +1376,15 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
   </div>
   <div class="dropdown-edit" id="categoriesModalDropdown"></div>
 
+  <div class="modal-overlay" id="balanceUnavailableModal" onclick="closeModalOnOverlay(event, 'balanceUnavailableModal')">
+    <div class="modal-content" style="position:relative;">
+      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeBalanceUnavailableModal()"></button>
+      <h3 class="modal-title">Внимание</h3>
+      <p class="balance-unavailable-message">Функция временно недоступна. Пожалуйста, попробуйте позже.</p>
+    </div>
+  </div>
+  <div class="dropdown-edit" id="balanceUnavailableModalDropdown"></div>
+
   <!-- Футер -->
     <div id="footer-placeholder"></div>
 
@@ -1486,6 +1495,10 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
     let existingWorkImages = [];
 
     const categoriesModalEl = document.getElementById('categoriesModal');
+    const balanceUnavailableModalEl = document.getElementById('balanceUnavailableModal');
+    const balanceUnavailableModalDropdownEl = document.getElementById('balanceUnavailableModalDropdown');
+    const balanceWithdrawBtnEl = document.getElementById('balanceWithdrawBtn');
+    const balanceTopUpBtnEl = document.getElementById('balanceTopUpBtn');
     const openCategoriesModalBtnEl = document.getElementById('openCategoriesModalBtn');
     const categoriesModalDefaultListEl = document.getElementById('categoriesModalDefaultList');
     const categoriesModalCustomListEl = document.getElementById('categoriesModalCustomList');
@@ -1668,6 +1681,25 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
       if (socialLinkModalEl) socialLinkModalEl.style.display = 'none';
       const socialLinkModalDropdown = document.getElementById('socialLinkModalDropdown');
       if (socialLinkModalDropdown) socialLinkModalDropdown.style.display = 'none';
+    }
+
+    function openBalanceUnavailableModal() {
+      if (!balanceUnavailableModalEl) return;
+      balanceUnavailableModalEl.style.display = 'block';
+      if (balanceUnavailableModalDropdownEl) balanceUnavailableModalDropdownEl.style.display = 'flex';
+    }
+
+    function closeBalanceUnavailableModal() {
+      if (balanceUnavailableModalEl) balanceUnavailableModalEl.style.display = 'none';
+      if (balanceUnavailableModalDropdownEl) balanceUnavailableModalDropdownEl.style.display = 'none';
+    }
+
+    if (balanceWithdrawBtnEl) {
+      balanceWithdrawBtnEl.addEventListener('click', openBalanceUnavailableModal);
+    }
+
+    if (balanceTopUpBtnEl) {
+      balanceTopUpBtnEl.addEventListener('click', openBalanceUnavailableModal);
     }
 
     function deleteServiceItem() {
