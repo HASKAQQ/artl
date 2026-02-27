@@ -1,8 +1,10 @@
 <?php
 $services = [];
 $categories = [];
+$adminCategories = [];
 $errorMessage = '';
 $selectedCategory = trim((string) ($_GET['category'] ?? ''));
+$otherCategoryKey = '__other__';
 $initialVisibleServices = 9;
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
@@ -51,11 +53,12 @@ try {
         throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
     }
 
-    $categoriesRes = $conn->query("SELECT DISTINCT TRIM(category) AS category_name FROM artist_services WHERE category IS NOT NULL AND TRIM(category) <> '' ORDER BY category_name ASC");
+    $categoriesRes = $conn->query('SELECT DISTINCT TRIM(categories) AS category_name FROM categories WHERE TRIM(categories) <> "" AND (is_default = 1 OR TRIM(COALESCE(created_by_phone, "")) = "admin") ORDER BY category_name ASC');
     if ($categoriesRes !== false) {
         while ($categoryRow = $categoriesRes->fetch_assoc()) {
             $categoryName = trim((string) ($categoryRow['category_name'] ?? ''));
             if ($categoryName !== '') {
+                $adminCategories[] = $categoryName;
                 $categories[] = $categoryName;
             }
         }
@@ -68,9 +71,22 @@ try {
     $params = [];
 
     if ($selectedCategory !== '') {
-        $sql .= ' WHERE s.category = ?';
-        $types = 's';
-        $params[] = $selectedCategory;
+        if ($selectedCategory === $otherCategoryKey) {
+            if (count($adminCategories) > 0) {
+                $placeholders = implode(', ', array_fill(0, count($adminCategories), '?'));
+                $sql .= ' WHERE TRIM(COALESCE(s.category, "")) <> "" AND s.category NOT IN (' . $placeholders . ')';
+                $types = str_repeat('s', count($adminCategories));
+                foreach ($adminCategories as $adminCategoryName) {
+                    $params[] = $adminCategoryName;
+                }
+            } else {
+                $sql .= ' WHERE TRIM(COALESCE(s.category, "")) <> ""';
+            }
+        } else {
+            $sql .= ' WHERE s.category = ?';
+            $types = 's';
+            $params[] = $selectedCategory;
+        }
     }
 
     $sql .= ' ORDER BY s.id DESC';
@@ -121,6 +137,7 @@ try {
         <?php foreach ($categories as $categoryName): ?>
           <a href="uslugi.php?category=<?php echo urlencode($categoryName); ?>" class="category-button <?php echo $selectedCategory === $categoryName ? 'active' : ''; ?>"><?php echo htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8'); ?></a>
         <?php endforeach; ?>
+        <a href="uslugi.php?category=<?php echo urlencode($otherCategoryKey); ?>" class="category-button <?php echo $selectedCategory === $otherCategoryKey ? 'active' : ''; ?>">Прочее</a>
       </div>
     </div>
   </section>
