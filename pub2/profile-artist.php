@@ -26,6 +26,8 @@ $userAbout = '';
 $portfolioWorks = [];
 $services = [];
 $reviews = [];
+$userEmail = '';
+$userVk = '';
 
 
 
@@ -72,8 +74,14 @@ try {
     if (hasColumn($conn, 'users', 'about') === false) {
         $conn->query('ALTER TABLE users ADD COLUMN about TEXT DEFAULT NULL');
     }
+    if (hasColumn($conn, 'users', 'social_email') === false) {
+        $conn->query('ALTER TABLE users ADD COLUMN social_email VARCHAR(255) DEFAULT NULL');
+    }
+    if (hasColumn($conn, 'users', 'social_vk') === false) {
+        $conn->query('ALTER TABLE users ADD COLUMN social_vk VARCHAR(255) DEFAULT NULL');
+    }
 
-    $stmt = prepareOrFail($conn, 'SELECT id, name, phone, role, avatar_path, registered_at, about FROM users WHERE id = ? AND role = "Художник" LIMIT 1');
+    $stmt = prepareOrFail($conn, 'SELECT id, name, phone, role, avatar_path, registered_at, about, social_email, social_vk FROM users WHERE id = ? AND role = "Художник" LIMIT 1');
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
@@ -84,6 +92,8 @@ try {
 
     $userAbout = trim((string) ($user['about'] ?? ''));
     $userPhone = trim((string) ($user['phone'] ?? ''));
+    $userEmail = trim((string) ($user['social_email'] ?? ''));
+    $userVk = trim((string) ($user['social_vk'] ?? ''));
 
     if (hasColumn($conn, 'profile_categories', 'profile_user_id')) {
         $catStmt = prepareOrFail(
@@ -152,6 +162,8 @@ try {
 $displayName = $user ? (string) ($user['name'] ?: 'Художник') : 'Профиль художника';
 $displayDate = $user ? date('d.m.Y', strtotime((string) ($user['registered_at'] ?? 'now'))) : '—';
 $avatarPath = $user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : 'src/image/Ellipse 2.png';
+$emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
+$vkHref = $userVk !== '' ? $userVk : '';
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -180,6 +192,14 @@ $avatarPath = $user && !empty($user['avatar_path']) ? (string) $user['avatar_pat
         <div class="col-4 col-lg-3 profile-col-wrapper">
           <div class="profile-avatar-wrapper position-relative">
             <img src="<?php echo htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8'); ?>" alt="Avatar" class="profile-avatar" id="avatarImage">
+          </div>
+          <div class="profile-contacts">
+            <a class="contact-link-btn<?php echo $vkHref === '' ? ' is-empty' : ''; ?>" <?php echo $vkHref === '' ? 'aria-disabled="true"' : 'href="' . htmlspecialchars($vkHref, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer"'; ?>>
+              <img src="src/image/icons/vk-icon.svg" alt="VK">
+            </a>
+            <a class="contact-link-btn<?php echo $emailHref === '' ? ' is-empty' : ''; ?>" <?php echo $emailHref === '' ? 'aria-disabled="true"' : 'href="' . htmlspecialchars($emailHref, ENT_QUOTES, 'UTF-8') . '"'; ?>>
+              <img src="src/image/icons/icons8-почта-100 1.svg" alt="Email">
+            </a>
           </div>
         </div>
 

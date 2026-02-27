@@ -1175,6 +1175,8 @@ body {
 .profile-contacts {
   display: flex;
   justify-content: space-evenly;
+  margin-top: 10px;
+  gap: 10px;
 }
 
 .contact-link-btn {
@@ -1182,10 +1184,25 @@ body {
   background: transparent;
   padding: 0;
   cursor: pointer;
+  display: inline-flex;
+  transition: transform .2s ease;
 }
 
 .contact-link-btn img {
   display: block;
+  width: 54px;
+  height: 54px;
+}
+
+.contact-link-btn:not(.is-empty):hover {
+  transform: scale(1.08);
+}
+
+.contact-link-btn.is-empty {
+  filter: grayscale(1);
+  opacity: .5;
+  cursor: default;
+  pointer-events: none;
 }
 
 .profile-balance {

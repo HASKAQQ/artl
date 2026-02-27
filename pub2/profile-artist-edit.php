@@ -61,9 +61,8 @@ function ensureUsersSocialColumns(mysqli $conn): void
     }
 
     $columnsToAdd = [
-        'social_telegram' => 'ALTER TABLE users ADD COLUMN social_telegram VARCHAR(255) DEFAULT NULL',
-        'social_whatsapp' => 'ALTER TABLE users ADD COLUMN social_whatsapp VARCHAR(255) DEFAULT NULL',
         'social_email' => 'ALTER TABLE users ADD COLUMN social_email VARCHAR(255) DEFAULT NULL',
+        'social_vk' => 'ALTER TABLE users ADD COLUMN social_vk VARCHAR(255) DEFAULT NULL',
         'about' => 'ALTER TABLE users ADD COLUMN about TEXT DEFAULT NULL',
     ];
 
@@ -333,9 +332,8 @@ $userName = '';
 $userId = 0;
 $avatarPath = '';
 $registeredAt = '';
-$telegramLink = '';
-$whatsappLink = '';
 $emailLink = '';
+$vkLink = '';
 $saveMessage = '';
 $errorMessage = '';
 $services = [];
@@ -442,15 +440,14 @@ try {
         $socialLink = trim((string) ($_POST['social_link'] ?? ''));
 
         $columnMap = [
-            'telegram' => 'social_telegram',
-            'whatsapp' => 'social_whatsapp',
             'email' => 'social_email',
+            'vk' => 'social_vk',
         ];
 
         if (!isset($columnMap[$socialType])) {
             $errorMessage = 'Неизвестный тип соцсети.';
         } elseif ($socialLink === '') {
-            $errorMessage = 'Введите ссылку или почту.';
+            $errorMessage = $socialType === 'email' ? 'Введите почту.' : 'Введите ссылку на VK.';
         } else {
             if ($socialType === 'email') {
                 if (!filter_var($socialLink, FILTER_VALIDATE_EMAIL)) {
@@ -460,8 +457,10 @@ try {
                 if (!preg_match('~^https?://~i', $socialLink)) {
                     $socialLink = 'https://' . $socialLink;
                 }
-                if (!filter_var($socialLink, FILTER_VALIDATE_URL)) {
-                    $errorMessage = 'Введите корректную ссылку.';
+                $isValidUrl = filter_var($socialLink, FILTER_VALIDATE_URL) !== false;
+                $isVkLink = preg_match('~(^|\.)vk\.com$~i', (string) parse_url($socialLink, PHP_URL_HOST));
+                if (!$isValidUrl || !$isVkLink) {
+                    $errorMessage = 'Введите корректную ссылку VK.';
                 }
             }
         }
@@ -480,9 +479,8 @@ try {
         $socialType = (string) ($_POST['social_type'] ?? '');
 
         $columnMap = [
-            'telegram' => 'social_telegram',
-            'whatsapp' => 'social_whatsapp',
             'email' => 'social_email',
+            'vk' => 'social_vk',
         ];
 
         if (!isset($columnMap[$socialType])) {
@@ -498,7 +496,7 @@ try {
     }
 
     if ($userPhone !== '') {
-        $stmt = prepareOrFail($conn, 'SELECT id, name, avatar_path, registered_at, social_telegram, social_whatsapp, social_email, about FROM users WHERE phone = ? LIMIT 1');
+        $stmt = prepareOrFail($conn, 'SELECT id, name, avatar_path, registered_at, social_email, social_vk, about FROM users WHERE phone = ? LIMIT 1');
         $stmt->bind_param('s', $userPhone);
         $stmt->execute();
         $existing = $stmt->get_result()->fetch_assoc();
@@ -508,9 +506,8 @@ try {
             $userName = (string) ($existing['name'] ?? '');
             $avatarPath = (string) ($existing['avatar_path'] ?? '');
             $registeredAt = (string) ($existing['registered_at'] ?? '');
-            $telegramLink = (string) ($existing['social_telegram'] ?? '');
-            $whatsappLink = (string) ($existing['social_whatsapp'] ?? '');
             $emailLink = (string) ($existing['social_email'] ?? '');
+            $vkLink = (string) ($existing['social_vk'] ?? '');
             $aboutText = (string) ($existing['about'] ?? '');
         } else {
             $authStmt = prepareOrFail($conn, 'SELECT created_at FROM phone_auth WHERE phone = ? ORDER BY id DESC LIMIT 1');
@@ -965,9 +962,8 @@ $avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF
 $showNameModal = $userName === '';
 
 $socialLinks = [
-    'telegram' => $telegramLink,
-    'whatsapp' => $whatsappLink,
     'email' => $emailLink,
+    'vk' => $vkLink,
 ];
 
 $defaultCategoriesJs = json_encode($defaultCategories, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT);
@@ -1025,9 +1021,8 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
             </div>
           </div>
           <div class="profile-contacts">
-            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('telegram', <?php echo json_encode($socialLinks['telegram'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-телеграм-100 1.svg" alt="Telegram"></button>
-            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('whatsapp', <?php echo json_encode($socialLinks['whatsapp'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-whatsapp-100 1.svg" alt="WhatsApp"></button>
-            <button type="button" class="contact-link-btn" onclick="openSocialLinkModal('email', <?php echo json_encode($socialLinks['email'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></button>
+            <button type="button" class="contact-link-btn<?php echo trim((string) $socialLinks['vk']) === '' ? ' is-empty' : ''; ?>" onclick="openSocialLinkModal('vk', <?php echo json_encode($socialLinks['vk'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/vk-icon.svg" alt="VK"></button>
+            <button type="button" class="contact-link-btn<?php echo trim((string) $socialLinks['email']) === '' ? ' is-empty' : ''; ?>" onclick="openSocialLinkModal('email', <?php echo json_encode($socialLinks['email'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></button>
           </div>
           <div class="profile-balance">
             <span class="balance-label">Баланс, руб</span>
@@ -1346,10 +1341,10 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
   <div class="modal-overlay" id="socialLinkModal" onclick="closeModalOnOverlay(event, 'socialLinkModal')">
     <div class="modal-content" style="position:relative;">
       <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeSocialLinkModal()"></button>
-      <h3 class="modal-title" id="socialLinkTitle">Ссылка на соцсеть</h3>
+      <h3 class="modal-title" id="socialLinkTitle">Контакт</h3>
       <form method="post" class="service-modal-form">
-        <input type="hidden" name="social_type" id="socialType" value="telegram">
-        <input type="text" class="modal-input" name="social_link" id="socialLinkInput" placeholder="Вставьте ссылку или почту" maxlength="255">
+        <input type="hidden" name="social_type" id="socialType" value="vk">
+        <input type="text" class="modal-input" name="social_link" id="socialLinkInput" placeholder="Вставьте ссылку VK или почту" maxlength="255">
         <div class="modal-buttons d-flex gap-2">
           <button class="btn-modal-save" type="submit" name="save_social_link">Сохранить</button>
           <button class="btn-modal-delete" type="submit" name="delete_social_link">Удалить</button>
@@ -1658,15 +1653,12 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
 
     function openSocialLinkModal(type, currentLink) {
       if (!socialLinkModalEl || !socialTypeEl || !socialLinkInputEl) return;
-      socialTypeEl.value = String(type || 'telegram');
+      socialTypeEl.value = String(type || 'vk');
       socialLinkInputEl.value = String(currentLink || '');
 
-      if (socialTypeEl.value === 'telegram') {
-        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Ссылка на Telegram';
-        socialLinkInputEl.placeholder = 'Вставьте ссылку на Telegram';
-      } else if (socialTypeEl.value === 'whatsapp') {
-        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Ссылка на WhatsApp';
-        socialLinkInputEl.placeholder = 'Вставьте ссылку на WhatsApp';
+      if (socialTypeEl.value === 'vk') {
+        if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Ссылка на VK';
+        socialLinkInputEl.placeholder = 'Вставьте ссылку на VK';
       } else {
         if (socialLinkTitleEl) socialLinkTitleEl.textContent = 'Почта';
         socialLinkInputEl.placeholder = 'Введите email';
