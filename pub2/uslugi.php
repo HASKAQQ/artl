@@ -9,6 +9,17 @@ $priceFilter = trim((string) ($_GET['price'] ?? ''));
 $otherCategoryKey = '__other__';
 $initialVisibleServices = 9;
 
+
+$priceFilterLabels = [
+    '' => 'Цена, ₽',
+    '0-10000' => '0 - 10 000',
+    '10000-30000' => '10 000 - 30 000',
+    '30000-50000' => '30 000 - 50 000',
+    '50000+' => '50 000+',
+];
+$currentPriceFilterLabel = $priceFilterLabels[$priceFilter] ?? $priceFilterLabels[''];
+
+
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
     $stmt = $conn->prepare($sql);
@@ -20,9 +31,12 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 }
 
 
-function buildServicesFilterUrl(string $category, string $searchQuery, string $priceFilter): string
+function buildServicesPageUrl(string $selectedCategory, string $searchQuery, string $priceFilter): string
 {
-    $params = ['category' => $category];
+    $params = [];
+    if ($selectedCategory !== '') {
+        $params['category'] = $selectedCategory;
+    }
     if ($searchQuery !== '') {
         $params['q'] = $searchQuery;
     }
@@ -30,7 +44,16 @@ function buildServicesFilterUrl(string $category, string $searchQuery, string $p
         $params['price'] = $priceFilter;
     }
 
+    if (count($params) === 0) {
+        return 'uslugi.php';
+    }
+
     return 'uslugi.php?' . http_build_query($params);
+}
+
+function buildServicesFilterUrl(string $category, string $searchQuery, string $priceFilter): string
+{
+    return buildServicesPageUrl($category, $searchQuery, $priceFilter);
 }
 
 function formatTimeAgo(string $datetime): string
@@ -192,32 +215,37 @@ try {
         <?php endforeach; ?>
         <a href="<?php echo htmlspecialchars(buildServicesFilterUrl($otherCategoryKey, $searchQuery, $priceFilter), ENT_QUOTES, 'UTF-8'); ?>" class="category-button <?php echo $selectedCategory === $otherCategoryKey ? 'active' : ''; ?>">Прочее</a>
       </div>
-    </div>
-  </section>
 
-
-  <section class="filters-section">
-    <div class="container">
-      <form class="row g-3 align-items-center" method="get">
-        <?php if ($selectedCategory !== ''): ?>
-          <input type="hidden" name="category" value="<?php echo htmlspecialchars($selectedCategory, ENT_QUOTES, 'UTF-8'); ?>">
-        <?php endif; ?>
-        <div class="col-lg-6 col-md-6">
-          <input type="text" name="q" class="form-control artists-search-input" placeholder="Поиск услуг" value="<?php echo htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>">
+      <div class="row align-items-center mt-4">
+        <div class="col-lg-7 col-md-12 mb-3 mb-lg-0">
+          <form class="artists-search-wrapper" method="get">
+            <?php if ($selectedCategory !== ''): ?>
+              <input type="hidden" name="category" value="<?php echo htmlspecialchars($selectedCategory, ENT_QUOTES, 'UTF-8'); ?>">
+            <?php endif; ?>
+            <?php if ($priceFilter !== ''): ?>
+              <input type="hidden" name="price" value="<?php echo htmlspecialchars($priceFilter, ENT_QUOTES, 'UTF-8'); ?>">
+            <?php endif; ?>
+            <input type="text" name="q" class="form-control artists-search-input" placeholder="Поиск услуг" value="<?php echo htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>">
+            <button class="artists-search-btn" type="submit" aria-label="Поиск услуг">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </form>
         </div>
-        <div class="col-lg-4 col-md-4">
-          <select name="price" class="form-select filter-dropdown">
-            <option value="" <?php echo $priceFilter === '' ? 'selected' : ''; ?>>Цена, ₽</option>
-            <option value="0-10000" <?php echo $priceFilter === '0-10000' ? 'selected' : ''; ?>>0 - 10 000</option>
-            <option value="10000-30000" <?php echo $priceFilter === '10000-30000' ? 'selected' : ''; ?>>10 000 - 30 000</option>
-            <option value="30000-50000" <?php echo $priceFilter === '30000-50000' ? 'selected' : ''; ?>>30 000 - 50 000</option>
-            <option value="50000+" <?php echo $priceFilter === '50000+' ? 'selected' : ''; ?>>50 000+</option>
-          </select>
+        <div class="col-lg-5 col-md-12 text-lg-end">
+          <div class="dropdown d-inline-block">
+            <button class="filter-dropdown dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <?php echo htmlspecialchars($currentPriceFilterLabel, ENT_QUOTES, 'UTF-8'); ?>
+            </button>
+            <ul class="dropdown-menu">
+              <?php foreach ($priceFilterLabels as $priceValue => $priceLabel): ?>
+                <li><a class="dropdown-item" href="<?php echo htmlspecialchars(buildServicesPageUrl($selectedCategory, $searchQuery, $priceValue), ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($priceLabel, ENT_QUOTES, 'UTF-8'); ?></a></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
         </div>
-        <div class="col-lg-2 col-md-2">
-          <button type="submit" class="btn btn-load-more w-100">Найти</button>
-        </div>
-      </form>
+      </div>
     </div>
   </section>
 
