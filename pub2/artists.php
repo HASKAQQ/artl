@@ -2,6 +2,7 @@
 $artists = [];
 $errorMessage = '';
 $searchQuery = trim((string) ($_GET['q'] ?? ''));
+$initialVisibleArtists = 9;
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -165,10 +166,10 @@ try {
             <?php if ($errorMessage !== ''): ?>
                 <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
-            <div class="row g-4">
+            <div class="row g-4" id="artistsGrid">
                 <?php if (count($artists) > 0): ?>
-                    <?php foreach ($artists as $artist): ?>
-                        <div class="col-lg-4 col-md-6">
+                    <?php foreach ($artists as $index => $artist): ?>
+                        <div class="col-lg-4 col-md-6 artist-card-item <?php echo $index >= $initialVisibleArtists ? 'd-none' : ''; ?>">
                             <a href="profile-artist.php?user_id=<?php echo (int) $artist['id']; ?>" class="text-decoration-none text-reset d-block">
                                 <div class="artist-card">
                                     <div class="artist-card-bg" style="background-color: <?php echo htmlspecialchars($artist['card_color'], ENT_QUOTES, 'UTF-8'); ?>;"></div>
@@ -188,14 +189,38 @@ try {
                 <?php endif; ?>
             </div>
 
-            <div class="text-center mt-5">
-                <a class="btn btn-load-more" href="artists.php">Обновить список</a>
-            </div>
+            <?php if (count($artists) > $initialVisibleArtists): ?>
+                <div class="text-center mt-5">
+                    <button id="showMoreArtistsBtn" class="btn btn-load-more" type="button">Смотреть еще</button>
+                </div>
+            <?php endif; ?>
         </div>
     </section>
 
     <div id="footer-placeholder"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var button = document.getElementById('showMoreArtistsBtn');
+            if (!button) {
+                return;
+            }
+
+            var hiddenItems = Array.from(document.querySelectorAll('.artist-card-item.d-none'));
+            var step = 9;
+
+            button.addEventListener('click', function () {
+                hiddenItems.splice(0, step).forEach(function (item) {
+                    item.classList.remove('d-none');
+                });
+
+                if (hiddenItems.length === 0) {
+                    button.classList.add('d-none');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
