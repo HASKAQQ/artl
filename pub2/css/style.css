@@ -1190,8 +1190,8 @@ body {
 
 .contact-link-btn img {
   display: block;
-  width: 54px;
-  height: 54px;
+  width: 48px;
+  height: 48px;
 }
 
 .contact-link-btn:not(.is-empty):hover {
@@ -1201,6 +1201,9 @@ body {
 .contact-link-btn.is-empty {
   filter: grayscale(1);
   opacity: .5;
+}
+
+a.contact-link-btn.is-empty {
   cursor: default;
   pointer-events: none;
 }
