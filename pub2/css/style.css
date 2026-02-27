@@ -1227,6 +1227,46 @@ body {
   font-size: 34px;
 }
 
+
+.profile-tag-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-tag-remove {
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.category-modal-tag {
+  border: none;
+  cursor: pointer;
+}
+
+.category-modal-tag.active {
+  background: #416D92;
+  color: #fff;
+}
+
+.categories-modal-list,
+.categories-custom-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-bottom: 14px;
+}
+
+.categories-custom-input-wrap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
 .profile-description {
   width: 80%;
   border: 2px solid #000000;
