@@ -769,8 +769,6 @@ body {
 .artist-card {
   position: relative;
   height: 260px;
-  max-width: 310px;
-  margin: 0 auto;
   border-radius: 5px;
   overflow: hidden;
   cursor: pointer;
