@@ -64,6 +64,7 @@ function ensureUsersSocialColumns(mysqli $conn): void
         'social_telegram' => 'ALTER TABLE users ADD COLUMN social_telegram VARCHAR(255) DEFAULT NULL',
         'social_whatsapp' => 'ALTER TABLE users ADD COLUMN social_whatsapp VARCHAR(255) DEFAULT NULL',
         'social_email' => 'ALTER TABLE users ADD COLUMN social_email VARCHAR(255) DEFAULT NULL',
+        'about' => 'ALTER TABLE users ADD COLUMN about TEXT DEFAULT NULL',
     ];
 
     foreach ($columnsToAdd as $columnName => $sql) {
@@ -71,6 +72,172 @@ function ensureUsersSocialColumns(mysqli $conn): void
             $conn->query($sql);
         }
     }
+}
+
+function ensureCategoryTables(mysqli $conn): void
+{
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS categories (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            categories VARCHAR(255) NOT NULL,
+            is_default TINYINT(1) NOT NULL DEFAULT 1,
+            created_by_phone VARCHAR(20) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_categories_name (categories)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    $categoryColumnsResult = $conn->query('SHOW COLUMNS FROM categories');
+    $categoryColumns = [];
+    if ($categoryColumnsResult !== false) {
+        while ($row = $categoryColumnsResult->fetch_assoc()) {
+            $field = (string) ($row['Field'] ?? '');
+            if ($field !== '') {
+                $categoryColumns[$field] = true;
+            }
+        }
+    }
+
+    $categoryColumnsToAdd = [
+        'is_default' => 'ALTER TABLE categories ADD COLUMN is_default TINYINT(1) NOT NULL DEFAULT 1',
+        'created_by_phone' => 'ALTER TABLE categories ADD COLUMN created_by_phone VARCHAR(20) DEFAULT NULL',
+        'created_at' => 'ALTER TABLE categories ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ];
+
+    foreach ($categoryColumnsToAdd as $columnName => $sql) {
+        if (!isset($categoryColumns[$columnName])) {
+            $conn->query($sql);
+        }
+    }
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS profile_categories (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_phone VARCHAR(20) NOT NULL,
+            category_id INT UNSIGNED DEFAULT NULL,
+            custom_category VARCHAR(32) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_profile_category (user_phone, category_id),
+            UNIQUE KEY uq_profile_custom_category (user_phone, custom_category),
+            INDEX idx_profile_user_phone (user_phone)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    $profileCategoryColumnsResult = $conn->query('SHOW COLUMNS FROM profile_categories');
+    $profileCategoryColumns = [];
+    if ($profileCategoryColumnsResult !== false) {
+        while ($row = $profileCategoryColumnsResult->fetch_assoc()) {
+            $field = (string) ($row['Field'] ?? '');
+            if ($field !== '') {
+                $profileCategoryColumns[$field] = true;
+            }
+        }
+    }
+
+    $profileCategoryColumnsToAdd = [
+        'user_phone' => 'ALTER TABLE profile_categories ADD COLUMN user_phone VARCHAR(20) DEFAULT NULL',
+        'profile_user_id' => 'ALTER TABLE profile_categories ADD COLUMN profile_user_id INT UNSIGNED DEFAULT NULL',
+        'category_id' => 'ALTER TABLE profile_categories ADD COLUMN category_id INT UNSIGNED DEFAULT NULL',
+        'custom_category' => 'ALTER TABLE profile_categories ADD COLUMN custom_category VARCHAR(32) DEFAULT NULL',
+        'created_at' => 'ALTER TABLE profile_categories ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ];
+
+    foreach ($profileCategoryColumnsToAdd as $columnName => $sql) {
+        if (!isset($profileCategoryColumns[$columnName])) {
+            $conn->query($sql);
+        }
+    }
+
+    if ((isset($profileCategoryColumns['profile_user_id']) || isset($profileCategoryColumnsToAdd['profile_user_id']))
+        && (isset($profileCategoryColumns['user_phone']) || isset($profileCategoryColumnsToAdd['user_phone']))) {
+        $conn->query(
+            'UPDATE profile_categories pc
+             INNER JOIN users u ON u.id = pc.profile_user_id
+             SET pc.user_phone = u.phone
+             WHERE (pc.user_phone IS NULL OR pc.user_phone = "") AND pc.profile_user_id IS NOT NULL'
+        );
+    }
+
+    $defaultCategories = [
+        'Цифровая живопись',
+        'Графический дизайн',
+        'Иллюстрация',
+        'Живопись и графика',
+        '3D-моделирование и визуализация',
+        'Скульптура и 3D-печать',
+        'Каллиграфия и леттеринг',
+    ];
+
+    $findDefault = prepareOrFail(
+        $conn,
+        'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) LIMIT 1'
+    );
+    $insertDefault = prepareOrFail(
+        $conn,
+        'INSERT INTO categories (categories, is_default, created_by_phone) VALUES (?, 1, "admin")'
+    );
+    $updateDefault = prepareOrFail(
+        $conn,
+        'UPDATE categories SET is_default = 1, created_by_phone = "admin" WHERE id = ?'
+    );
+
+    foreach ($defaultCategories as $categoryName) {
+        $findDefault->bind_param('s', $categoryName);
+        $findDefault->execute();
+        $foundRow = $findDefault->get_result()->fetch_assoc();
+
+        if ($foundRow && isset($foundRow['id'])) {
+            $foundId = (int) $foundRow['id'];
+            $updateDefault->bind_param('i', $foundId);
+            $updateDefault->execute();
+        } else {
+            $insertDefault->bind_param('s', $categoryName);
+            $insertDefault->execute();
+        }
+    }
+
+    $conn->query(
+        'DELETE c1 FROM categories c1
+         INNER JOIN categories c2 ON TRIM(c1.categories) = TRIM(c2.categories) AND c1.id > c2.id'
+    );
+
+    $conn->query(
+        'DELETE pc FROM profile_categories pc
+         INNER JOIN categories c ON c.id = pc.category_id
+         WHERE TRIM(c.categories) IN ("Прочее", "Все")'
+    );
+    $conn->query('DELETE FROM categories WHERE TRIM(categories) IN ("Прочее", "Все")');
+}
+
+
+function parseCustomCategoryList(string $raw): array
+{
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    $result = [];
+    foreach ($decoded as $item) {
+        if (!is_string($item)) {
+            continue;
+        }
+        $value = trim($item);
+        if ($value === '') {
+            continue;
+        }
+
+        if (mb_strlen($value) > 32) {
+            $value = mb_substr($value, 0, 32);
+        }
+        $result[$value] = $value;
+    }
+
+    return array_values($result);
 }
 
 function getDbConnection(): mysqli
@@ -163,6 +330,7 @@ function getDbConnection(): mysqli
 
 $userPhone = $_SESSION['user_phone'] ?? '';
 $userName = '';
+$userId = 0;
 $avatarPath = '';
 $registeredAt = '';
 $telegramLink = '';
@@ -172,6 +340,13 @@ $saveMessage = '';
 $errorMessage = '';
 $services = [];
 $portfolioWorks = [];
+$allCategories = [];
+$defaultCategories = [];
+$selectedDefaultCategoryIds = [];
+$selectedCustomCategories = [];
+$aboutText = '';
+$profileCategoryHasUserPhone = true;
+$profileCategoryHasProfileUserId = false;
 
 if (isset($_SESSION['profile_artist_flash'])) {
     $saveMessage = (string) $_SESSION['profile_artist_flash'];
@@ -182,6 +357,22 @@ try {
     $conn = getDbConnection();
 
     ensureUsersSocialColumns($conn);
+    ensureCategoryTables($conn);
+
+    $profileCategoriesColumnsResult = $conn->query('SHOW COLUMNS FROM profile_categories');
+    if ($profileCategoriesColumnsResult !== false) {
+        $profileCategoryHasUserPhone = false;
+        $profileCategoryHasProfileUserId = false;
+        while ($columnRow = $profileCategoriesColumnsResult->fetch_assoc()) {
+            $field = (string) ($columnRow['Field'] ?? '');
+            if ($field === 'user_phone') {
+                $profileCategoryHasUserPhone = true;
+            }
+            if ($field === 'profile_user_id') {
+                $profileCategoryHasProfileUserId = true;
+            }
+        }
+    }
 
     if ($userPhone !== '' && isset($_GET['set_role'])) {
         $setRole = (string) $_GET['set_role'];
@@ -307,18 +498,20 @@ try {
     }
 
     if ($userPhone !== '') {
-        $stmt = prepareOrFail($conn, 'SELECT name, avatar_path, registered_at, social_telegram, social_whatsapp, social_email FROM users WHERE phone = ? LIMIT 1');
+        $stmt = prepareOrFail($conn, 'SELECT id, name, avatar_path, registered_at, social_telegram, social_whatsapp, social_email, about FROM users WHERE phone = ? LIMIT 1');
         $stmt->bind_param('s', $userPhone);
         $stmt->execute();
         $existing = $stmt->get_result()->fetch_assoc();
 
         if ($existing) {
+            $userId = (int) ($existing['id'] ?? 0);
             $userName = (string) ($existing['name'] ?? '');
             $avatarPath = (string) ($existing['avatar_path'] ?? '');
             $registeredAt = (string) ($existing['registered_at'] ?? '');
             $telegramLink = (string) ($existing['social_telegram'] ?? '');
             $whatsappLink = (string) ($existing['social_whatsapp'] ?? '');
             $emailLink = (string) ($existing['social_email'] ?? '');
+            $aboutText = (string) ($existing['about'] ?? '');
         } else {
             $authStmt = prepareOrFail($conn, 'SELECT created_at FROM phone_auth WHERE phone = ? ORDER BY id DESC LIMIT 1');
             $authStmt->bind_param('s', $userPhone);
@@ -499,10 +692,17 @@ try {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
         $name = trim((string) ($_POST['profile_name'] ?? ''));
+        $about = trim((string) ($_POST['profile_description'] ?? ''));
+        if (mb_strlen($about, 'UTF-8') > 500) {
+            $errorMessage = 'Поле «О себе» должно быть не длиннее 500 символов.';
+        }
+        $selectedCategoryIds = parsePositiveIntList((string) ($_POST['selected_category_ids'] ?? ''));
+        $customCategories = parseCustomCategoryList((string) ($_POST['custom_categories'] ?? ''));
+        $customCategoryIds = [];
 
         if ($name === '') {
             $errorMessage = 'Вы обязаны ввести имя перед сохранением профиля.';
-        } else {
+        } elseif ($errorMessage === '') {
             $avatarForDb = $avatarPath;
 
             if (isset($_FILES['avatar_file']) && $_FILES['avatar_file']['error'] === UPLOAD_ERR_OK) {
@@ -528,16 +728,127 @@ try {
             }
 
             if ($errorMessage === '') {
-                $upsert = prepareOrFail(
+                $updateProfile = prepareOrFail(
                     $conn,
-                    'INSERT INTO users (phone, name, role, avatar_path) VALUES (?, ?, "Художник", ?)
-                     ON DUPLICATE KEY UPDATE name = VALUES(name), avatar_path = VALUES(avatar_path), role = VALUES(role)'
+                    'UPDATE users SET name = ?, role = "Художник", avatar_path = ?, about = ? WHERE phone = ?'
                 );
-                $upsert->bind_param('sss', $userPhone, $name, $avatarForDb);
-                $upsert->execute();
+                $updateProfile->bind_param('ssss', $name, $avatarForDb, $about, $userPhone);
+                $updateProfile->execute();
+
+                if ($updateProfile->affected_rows === 0) {
+                    $insertProfile = prepareOrFail(
+                        $conn,
+                        'INSERT INTO users (phone, name, role, avatar_path, about) VALUES (?, ?, "Художник", ?, ?)'
+                    );
+                    $insertProfile->bind_param('ssss', $userPhone, $name, $avatarForDb, $about);
+                    $insertProfile->execute();
+                }
+
+                if ($userId <= 0) {
+                    $userIdStmt = prepareOrFail($conn, 'SELECT id FROM users WHERE phone = ? LIMIT 1');
+                    $userIdStmt->bind_param('s', $userPhone);
+                    $userIdStmt->execute();
+                    $userIdRow = $userIdStmt->get_result()->fetch_assoc();
+                    $userId = (int) ($userIdRow['id'] ?? 0);
+                }
+
+                if (count($customCategories) > 0) {
+                    $findCustomInCategories = prepareOrFail($conn, 'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) LIMIT 1');
+                    $insertCustomInCategories = prepareOrFail($conn, 'INSERT INTO categories (categories, is_default, created_by_phone) VALUES (?, 0, ?)');
+                    foreach ($customCategories as $customCategory) {
+                        $findCustomInCategories->bind_param('s', $customCategory);
+                        $findCustomInCategories->execute();
+                        $customCategoryRow = $findCustomInCategories->get_result()->fetch_assoc();
+                        if ($customCategoryRow && isset($customCategoryRow['id'])) {
+                            $customCategoryIds[] = (int) $customCategoryRow['id'];
+                        } else {
+                            $insertCustomInCategories->bind_param('ss', $customCategory, $userPhone);
+                            $insertCustomInCategories->execute();
+                            $customCategoryIds[] = (int) $insertCustomInCategories->insert_id;
+                        }
+                    }
+                    $customCategoryIds = array_values(array_filter(array_unique($customCategoryIds), static fn($v) => (int) $v > 0));
+                }
+
+                if ($profileCategoryHasUserPhone) {
+                    $delProfileCategories = prepareOrFail($conn, 'DELETE FROM profile_categories WHERE user_phone = ?');
+                    $delProfileCategories->bind_param('s', $userPhone);
+                    $delProfileCategories->execute();
+                } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+                    $delProfileCategories = prepareOrFail($conn, 'DELETE FROM profile_categories WHERE profile_user_id = ?');
+                    $delProfileCategories->bind_param('i', $userId);
+                    $delProfileCategories->execute();
+                }
+
+                if (count($selectedCategoryIds) > 0) {
+                    if ($profileCategoryHasUserPhone && $profileCategoryHasProfileUserId && $userId > 0) {
+                        $insProfileCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, profile_user_id, category_id) VALUES (?, ?, ?)');
+                        foreach ($selectedCategoryIds as $categoryId) {
+                            $insProfileCategory->bind_param('sii', $userPhone, $userId, $categoryId);
+                            $insProfileCategory->execute();
+                        }
+                    } elseif ($profileCategoryHasUserPhone) {
+                        $insProfileCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, category_id) VALUES (?, ?)');
+                        foreach ($selectedCategoryIds as $categoryId) {
+                            $insProfileCategory->bind_param('si', $userPhone, $categoryId);
+                            $insProfileCategory->execute();
+                        }
+                    } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+                        $insProfileCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (profile_user_id, category_id) VALUES (?, ?)');
+                        foreach ($selectedCategoryIds as $categoryId) {
+                            $insProfileCategory->bind_param('ii', $userId, $categoryId);
+                            $insProfileCategory->execute();
+                        }
+                    }
+                }
+
+                if (count($customCategoryIds) > 0) {
+                    if ($profileCategoryHasUserPhone && $profileCategoryHasProfileUserId && $userId > 0) {
+                        $insCustomCategoryId = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, profile_user_id, category_id) VALUES (?, ?, ?)');
+                        foreach ($customCategoryIds as $customCategoryId) {
+                            $insCustomCategoryId->bind_param('sii', $userPhone, $userId, $customCategoryId);
+                            $insCustomCategoryId->execute();
+                        }
+                    } elseif ($profileCategoryHasUserPhone) {
+                        $insCustomCategoryId = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, category_id) VALUES (?, ?)');
+                        foreach ($customCategoryIds as $customCategoryId) {
+                            $insCustomCategoryId->bind_param('si', $userPhone, $customCategoryId);
+                            $insCustomCategoryId->execute();
+                        }
+                    } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+                        $insCustomCategoryId = prepareOrFail($conn, 'INSERT INTO profile_categories (profile_user_id, category_id) VALUES (?, ?)');
+                        foreach ($customCategoryIds as $customCategoryId) {
+                            $insCustomCategoryId->bind_param('ii', $userId, $customCategoryId);
+                            $insCustomCategoryId->execute();
+                        }
+                    }
+                }
+
+                if (count($customCategories) > 0) {
+                    if ($profileCategoryHasUserPhone && $profileCategoryHasProfileUserId && $userId > 0) {
+                        $insCustomCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, profile_user_id, custom_category) VALUES (?, ?, ?)');
+                        foreach ($customCategories as $customCategory) {
+                            $insCustomCategory->bind_param('sis', $userPhone, $userId, $customCategory);
+                            $insCustomCategory->execute();
+                        }
+                    } elseif ($profileCategoryHasUserPhone) {
+                        $insCustomCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, custom_category) VALUES (?, ?)');
+                        foreach ($customCategories as $customCategory) {
+                            $insCustomCategory->bind_param('ss', $userPhone, $customCategory);
+                            $insCustomCategory->execute();
+                        }
+                    } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+                        $insCustomCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (profile_user_id, custom_category) VALUES (?, ?)');
+                        foreach ($customCategories as $customCategory) {
+                            $insCustomCategory->bind_param('is', $userId, $customCategory);
+                            $insCustomCategory->execute();
+                        }
+                    }
+                }
 
                 $userName = $name;
                 $avatarPath = $avatarForDb;
+                $aboutText = $about;
 
                 $stmt = prepareOrFail($conn, 'SELECT registered_at FROM users WHERE phone = ? LIMIT 1');
                 $stmt->bind_param('s', $userPhone);
@@ -594,6 +905,57 @@ try {
         $services[] = $serviceRow;
     }
 
+    $categoriesStmt = prepareOrFail($conn, 'SELECT MIN(id) AS id, TRIM(categories) AS categories, MAX(is_default) AS is_default, MAX(COALESCE(created_by_phone, "")) AS created_by_phone FROM categories WHERE TRIM(categories) <> "" AND TRIM(categories) <> "Все" GROUP BY TRIM(categories) ORDER BY MAX(is_default) DESC, TRIM(categories) ASC');
+    $categoriesStmt->execute();
+    $categoriesRes = $categoriesStmt->get_result();
+    while ($categoryRow = $categoriesRes->fetch_assoc()) {
+        $allCategories[] = [
+            'id' => (int) ($categoryRow['id'] ?? 0),
+            'name' => (string) ($categoryRow['categories'] ?? ''),
+            'is_default' => (int) ($categoryRow['is_default'] ?? 1) === 1,
+            'created_by_phone' => (string) ($categoryRow['created_by_phone'] ?? ''),
+        ];
+    }
+
+    if ($profileCategoryHasUserPhone) {
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT pc.category_id, pc.custom_category, c.is_default AS category_is_default, c.categories AS category_name FROM profile_categories pc LEFT JOIN categories c ON c.id = pc.category_id WHERE pc.user_phone = ?');
+        $profileCategoriesStmt->bind_param('s', $userPhone);
+    } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT pc.category_id, pc.custom_category, c.is_default AS category_is_default, c.categories AS category_name FROM profile_categories pc LEFT JOIN categories c ON c.id = pc.category_id WHERE pc.profile_user_id = ?');
+        $profileCategoriesStmt->bind_param('i', $userId);
+    } else {
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT pc.category_id, pc.custom_category, c.is_default AS category_is_default, c.categories AS category_name FROM profile_categories pc LEFT JOIN categories c ON c.id = pc.category_id WHERE 1 = 0');
+    }
+    $profileCategoriesStmt->execute();
+    $profileCategoriesRes = $profileCategoriesStmt->get_result();
+    while ($profileCategoryRow = $profileCategoriesRes->fetch_assoc()) {
+        $categoryId = (int) ($profileCategoryRow['category_id'] ?? 0);
+        $customCategory = trim((string) ($profileCategoryRow['custom_category'] ?? ''));
+        $categoryName = trim((string) ($profileCategoryRow['category_name'] ?? ''));
+        $categoryIsDefault = (int) ($profileCategoryRow['category_is_default'] ?? 1) === 1;
+
+        if ($customCategory !== '') {
+            $selectedCustomCategories[$customCategory] = $customCategory;
+            continue;
+        }
+
+        if ($categoryId > 0) {
+            if ($categoryIsDefault) {
+                $selectedDefaultCategoryIds[$categoryId] = $categoryId;
+            } elseif ($categoryName !== '') {
+                $selectedCustomCategories[$categoryName] = $categoryName;
+            }
+        }
+    }
+
+    foreach ($allCategories as $categoryRow) {
+        if ($categoryRow['is_default']) {
+            $defaultCategories[] = $categoryRow;
+        }
+    }
+
+
+
 } catch (Throwable $e) {
     $errorMessage = 'Ошибка при сохранении профиля: ' . $e->getMessage();
 }
@@ -607,6 +969,10 @@ $socialLinks = [
     'whatsapp' => $whatsappLink,
     'email' => $emailLink,
 ];
+
+$defaultCategoriesJs = json_encode($defaultCategories, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT);
+$selectedDefaultCategoryIdsJs = json_encode(array_values($selectedDefaultCategoryIds), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT);
+$selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -689,14 +1055,23 @@ $socialLinks = [
 
           <p class="profile-registration"><?php echo htmlspecialchars($registrationLabel, ENT_QUOTES, "UTF-8"); ?></p>
 
-          <div class="profile-tags">
-            <p class="profile-tag">3D-моделирование и визуализация</p>
-            <p class="profile-tag">Графический дизайн</p>
-            <p class="profile-tag">Цифровая живопись</p>
-            <button class="profile-tag-add">+</button>
+          <div class="profile-tags" id="profileSelectedCategories">
+            <?php foreach ($defaultCategories as $category): ?>
+              <?php if (isset($selectedDefaultCategoryIds[(int) $category['id']])): ?>
+                <p class="profile-tag" data-category-id="<?php echo (int) $category['id']; ?>"><?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></p>
+              <?php endif; ?>
+            <?php endforeach; ?>
+            <?php foreach ($selectedCustomCategories as $customCategory): ?>
+              <p class="profile-tag profile-tag-custom"><?php echo htmlspecialchars((string) $customCategory, ENT_QUOTES, 'UTF-8'); ?><button class="profile-tag-remove" type="button" aria-label="Удалить категорию">×</button></p>
+            <?php endforeach; ?>
+            <button class="profile-tag-add" type="button" id="openCategoriesModalBtn">+</button>
           </div>
 
-          <textarea class="profile-description" placeholder="О себе..."></textarea>
+          <input type="hidden" name="selected_category_ids" id="selectedCategoryIdsInput" value="<?php echo htmlspecialchars(implode(',', array_values($selectedDefaultCategoryIds)), ENT_QUOTES, 'UTF-8'); ?>">
+          <input type="hidden" name="custom_categories" id="customCategoriesInput" value="<?php echo htmlspecialchars(json_encode(array_values($selectedCustomCategories), JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>">
+
+          <textarea class="profile-description" name="profile_description" id="profileDescription" placeholder="О себе (до 500 символов)..." maxlength="500"><?php echo htmlspecialchars($aboutText, ENT_QUOTES, 'UTF-8'); ?></textarea>
+          <p class="text-muted small mb-2">Максимум 500 символов.</p>
           <button class="btn-save-profile" type="submit" name="save_profile">Сохранить</button>
         </div>
 
@@ -847,7 +1222,7 @@ $socialLinks = [
                   <p class="service-category"><?php echo htmlspecialchars((string) $service['category'], ENT_QUOTES, 'UTF-8'); ?></p>
                   <div class="service-bottom">
                     <p class="service-price">от <?php echo (int) $service['price']; ?>р</p>
-                    <p class="service-time"><?php echo htmlspecialchars(date('d.m.Y', strtotime((string) $service['created_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="service-time"><?php echo htmlspecialchars(date('H:i', strtotime((string) $service['created_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>
               </div>
@@ -947,11 +1322,9 @@ $socialLinks = [
         <input type="text" class="modal-input" name="service_title" id="serviceTitle" placeholder="Название услуги" required>
         <select class="modal-input" name="service_category" id="serviceCategory" required>
           <option value="">Категория</option>
-          <option value="3D-моделирование">3D-моделирование</option>
-          <option value="Графический дизайн">Графический дизайн</option>
-          <option value="Цифровая живопись">Цифровая живопись</option>
-          <option value="Иллюстрация">Иллюстрация</option>
-          <option value="Другое">Другое</option>
+          <?php foreach ($allCategories as $category): ?>
+            <option value="<?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?></option>
+          <?php endforeach; ?>
         </select>
         <div class="input-group mb-3">
           <span class="input-group-text">Цена</span>
@@ -985,6 +1358,23 @@ $socialLinks = [
     </div>
   </div>
   <div class="dropdown-edit" id="socialLinkModalDropdown"></div>
+
+  <div class="modal-overlay" id="categoriesModal" onclick="closeModalOnOverlay(event, 'categoriesModal')">
+    <div class="modal-content categories-modal-content" style="position:relative;">
+      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeCategoriesModal()"></button>
+      <h3 class="modal-title">Категории профиля</h3>
+      <div class="categories-modal-list" id="categoriesModalDefaultList"></div>
+      <div class="categories-custom-input-wrap">
+        <input type="text" class="modal-input" id="newCustomCategoryInput" maxlength="32" placeholder="Добавить свою категорию (до 32 символов)">
+        <button class="btn-modal-save" type="button" id="addCustomCategoryBtn">Добавить</button>
+      </div>
+      <div class="categories-custom-list" id="categoriesModalCustomList"></div>
+      <div class="modal-buttons d-flex gap-2">
+        <button class="btn-modal-save" type="button" id="saveCategoriesBtn">Сохранить</button>
+      </div>
+    </div>
+  </div>
+  <div class="dropdown-edit" id="categoriesModalDropdown"></div>
 
   <!-- Футер -->
     <div id="footer-placeholder"></div>
@@ -1094,6 +1484,21 @@ $socialLinks = [
     let selectedWorkFiles = [];
     let existingServiceImages = [];
     let existingWorkImages = [];
+
+    const categoriesModalEl = document.getElementById('categoriesModal');
+    const openCategoriesModalBtnEl = document.getElementById('openCategoriesModalBtn');
+    const categoriesModalDefaultListEl = document.getElementById('categoriesModalDefaultList');
+    const categoriesModalCustomListEl = document.getElementById('categoriesModalCustomList');
+    const newCustomCategoryInputEl = document.getElementById('newCustomCategoryInput');
+    const addCustomCategoryBtnEl = document.getElementById('addCustomCategoryBtn');
+    const saveCategoriesBtnEl = document.getElementById('saveCategoriesBtn');
+    const selectedCategoriesContainerEl = document.getElementById('profileSelectedCategories');
+    const selectedCategoryIdsInputEl = document.getElementById('selectedCategoryIdsInput');
+    const customCategoriesInputEl = document.getElementById('customCategoriesInput');
+
+    const defaultCategoriesData = <?php echo $defaultCategoriesJs ?: '[]'; ?>;
+    let selectedDefaultCategoryIdsData = new Set(<?php echo $selectedDefaultCategoryIdsJs ?: '[]'; ?>);
+    let selectedCustomCategoriesData = <?php echo $selectedCustomCategoriesJs ?: '[]'; ?>;
 
     function syncDeletedImageIdsField(fieldEl, idsSet) {
       if (!fieldEl) return;
@@ -1358,6 +1763,171 @@ $socialLinks = [
         }
       });
     }
+
+
+    function renderSelectedCategoriesInProfile() {
+      if (!selectedCategoriesContainerEl) return;
+      selectedCategoriesContainerEl.innerHTML = '';
+
+      defaultCategoriesData.forEach((category) => {
+        const categoryId = Number(category.id || 0);
+        if (!selectedDefaultCategoryIdsData.has(categoryId)) return;
+        const tag = document.createElement('p');
+        tag.className = 'profile-tag';
+        tag.dataset.categoryId = String(categoryId);
+        tag.textContent = String(category.name || '');
+        selectedCategoriesContainerEl.appendChild(tag);
+      });
+
+      selectedCustomCategoriesData.forEach((categoryName, index) => {
+        const tag = document.createElement('p');
+        tag.className = 'profile-tag profile-tag-custom';
+        tag.textContent = String(categoryName);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'profile-tag-remove';
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => {
+          selectedCustomCategoriesData.splice(index, 1);
+          syncCategoriesHiddenInputs();
+          renderSelectedCategoriesInProfile();
+          renderCategoriesModal();
+        });
+
+        tag.appendChild(removeBtn);
+        selectedCategoriesContainerEl.appendChild(tag);
+      });
+
+      const plusBtn = document.createElement('button');
+      plusBtn.className = 'profile-tag-add';
+      plusBtn.type = 'button';
+      plusBtn.id = 'openCategoriesModalBtn';
+      plusBtn.textContent = '+';
+      plusBtn.addEventListener('click', openCategoriesModal);
+      selectedCategoriesContainerEl.appendChild(plusBtn);
+    }
+
+    function syncCategoriesHiddenInputs() {
+      if (selectedCategoryIdsInputEl) {
+        selectedCategoryIdsInputEl.value = Array.from(selectedDefaultCategoryIdsData).join(',');
+      }
+      if (customCategoriesInputEl) {
+        customCategoriesInputEl.value = JSON.stringify(selectedCustomCategoriesData);
+      }
+    }
+
+    function applyCategoriesSelection() {
+      syncCategoriesHiddenInputs();
+      renderSelectedCategoriesInProfile();
+    }
+
+    function renderCategoriesModal() {
+      if (categoriesModalDefaultListEl) {
+        categoriesModalDefaultListEl.innerHTML = '';
+        defaultCategoriesData.forEach((category) => {
+          const categoryId = Number(category.id || 0);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'profile-tag category-modal-tag' + (selectedDefaultCategoryIdsData.has(categoryId) ? ' active' : '');
+          btn.textContent = String(category.name || '');
+          btn.addEventListener('click', () => {
+            if (selectedDefaultCategoryIdsData.has(categoryId)) {
+              selectedDefaultCategoryIdsData.delete(categoryId);
+            } else {
+              selectedDefaultCategoryIdsData.add(categoryId);
+            }
+            applyCategoriesSelection();
+            renderCategoriesModal();
+          });
+          categoriesModalDefaultListEl.appendChild(btn);
+        });
+      }
+
+      if (categoriesModalCustomListEl) {
+        categoriesModalCustomListEl.innerHTML = '';
+        selectedCustomCategoriesData.forEach((categoryName, index) => {
+          const tag = document.createElement('p');
+          tag.className = 'profile-tag profile-tag-custom';
+          tag.textContent = String(categoryName);
+
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'profile-tag-remove';
+          removeBtn.textContent = '×';
+          removeBtn.addEventListener('click', () => {
+            selectedCustomCategoriesData.splice(index, 1);
+            applyCategoriesSelection();
+            renderCategoriesModal();
+          });
+
+          tag.appendChild(removeBtn);
+          categoriesModalCustomListEl.appendChild(tag);
+        });
+      }
+    }
+
+    function openCategoriesModal() {
+      if (!categoriesModalEl) return;
+      renderCategoriesModal();
+      categoriesModalEl.style.display = 'block';
+      const categoriesModalDropdown = document.getElementById('categoriesModalDropdown');
+      if (categoriesModalDropdown) categoriesModalDropdown.style.display = 'flex';
+    }
+
+    function closeCategoriesModal() {
+      if (categoriesModalEl) categoriesModalEl.style.display = 'none';
+      const categoriesModalDropdown = document.getElementById('categoriesModalDropdown');
+      if (categoriesModalDropdown) categoriesModalDropdown.style.display = 'none';
+    }
+
+    if (openCategoriesModalBtnEl) {
+      openCategoriesModalBtnEl.addEventListener('click', openCategoriesModal);
+    }
+
+    if (addCustomCategoryBtnEl && newCustomCategoryInputEl) {
+      addCustomCategoryBtnEl.addEventListener('click', () => {
+        const value = String(newCustomCategoryInputEl.value || '').trim();
+        if (value === '') return;
+        if (value.length > 32) {
+          alert('Категория должна быть не длиннее 32 символов.');
+          return;
+        }
+        if (selectedCustomCategoriesData.includes(value)) {
+          newCustomCategoryInputEl.value = '';
+          return;
+        }
+        selectedCustomCategoriesData.push(value);
+        newCustomCategoryInputEl.value = '';
+        applyCategoriesSelection();
+        renderCategoriesModal();
+      });
+    }
+
+    if (saveCategoriesBtnEl) {
+      saveCategoriesBtnEl.addEventListener('click', () => {
+        applyCategoriesSelection();
+        closeCategoriesModal();
+      });
+    }
+
+    if (newCustomCategoryInputEl) {
+      newCustomCategoryInputEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          if (addCustomCategoryBtnEl) addCustomCategoryBtnEl.click();
+        }
+      });
+    }
+
+    const profileFormEl = document.getElementById('profileForm');
+    if (profileFormEl) {
+      profileFormEl.addEventListener('submit', () => {
+        applyCategoriesSelection();
+      });
+    }
+
+    applyCategoriesSelection();
 
     function slideCardImage(buttonEl, direction) {
       const card = buttonEl.closest('.portfolio-card, .service-item');
