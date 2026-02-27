@@ -216,7 +216,12 @@ try {
         <a href="<?php echo htmlspecialchars(buildServicesFilterUrl($otherCategoryKey, $searchQuery, $priceFilter), ENT_QUOTES, 'UTF-8'); ?>" class="category-button <?php echo $selectedCategory === $otherCategoryKey ? 'active' : ''; ?>">Прочее</a>
       </div>
 
-      <div class="row align-items-center mt-4">
+    </div>
+  </section>
+
+  <section class="filters-section">
+    <div class="container">
+      <div class="row align-items-center">
         <div class="col-lg-7 col-md-12 mb-3 mb-lg-0">
           <form class="artists-search-wrapper" method="get">
             <?php if ($selectedCategory !== ''): ?>
