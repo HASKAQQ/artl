@@ -87,6 +87,29 @@ function ensureCategoryTables(mysqli $conn): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
+    $categoryColumnsResult = $conn->query('SHOW COLUMNS FROM categories');
+    $categoryColumns = [];
+    if ($categoryColumnsResult !== false) {
+        while ($row = $categoryColumnsResult->fetch_assoc()) {
+            $field = (string) ($row['Field'] ?? '');
+            if ($field !== '') {
+                $categoryColumns[$field] = true;
+            }
+        }
+    }
+
+    $categoryColumnsToAdd = [
+        'is_default' => 'ALTER TABLE categories ADD COLUMN is_default TINYINT(1) NOT NULL DEFAULT 1',
+        'created_by_phone' => 'ALTER TABLE categories ADD COLUMN created_by_phone VARCHAR(20) DEFAULT NULL',
+        'created_at' => 'ALTER TABLE categories ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ];
+
+    foreach ($categoryColumnsToAdd as $columnName => $sql) {
+        if (!isset($categoryColumns[$columnName])) {
+            $conn->query($sql);
+        }
+    }
+
     $conn->query(
         'CREATE TABLE IF NOT EXISTS profile_categories (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -99,6 +122,29 @@ function ensureCategoryTables(mysqli $conn): void
             INDEX idx_profile_user_phone (user_phone)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
+
+    $profileCategoryColumnsResult = $conn->query('SHOW COLUMNS FROM profile_categories');
+    $profileCategoryColumns = [];
+    if ($profileCategoryColumnsResult !== false) {
+        while ($row = $profileCategoryColumnsResult->fetch_assoc()) {
+            $field = (string) ($row['Field'] ?? '');
+            if ($field !== '') {
+                $profileCategoryColumns[$field] = true;
+            }
+        }
+    }
+
+    $profileCategoryColumnsToAdd = [
+        'category_id' => 'ALTER TABLE profile_categories ADD COLUMN category_id INT UNSIGNED DEFAULT NULL',
+        'custom_category' => 'ALTER TABLE profile_categories ADD COLUMN custom_category VARCHAR(32) DEFAULT NULL',
+        'created_at' => 'ALTER TABLE profile_categories ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ];
+
+    foreach ($profileCategoryColumnsToAdd as $columnName => $sql) {
+        if (!isset($profileCategoryColumns[$columnName])) {
+            $conn->query($sql);
+        }
+    }
 
     $defaultCategories = [
         'Цифровая живопись',
