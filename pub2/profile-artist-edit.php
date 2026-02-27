@@ -175,11 +175,11 @@ function ensureCategoryTables(mysqli $conn): void
     );
     $insertDefault = prepareOrFail(
         $conn,
-        'INSERT INTO categories (categories, is_default, created_by_phone) VALUES (?, 1, NULL)'
+        'INSERT INTO categories (categories, is_default, created_by_phone) VALUES (?, 1, "admin")'
     );
     $updateDefault = prepareOrFail(
         $conn,
-        'UPDATE categories SET is_default = 1 WHERE id = ?'
+        'UPDATE categories SET is_default = 1, created_by_phone = "admin" WHERE id = ?'
     );
 
     foreach ($defaultCategories as $categoryName) {
