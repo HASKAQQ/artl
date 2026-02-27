@@ -170,15 +170,38 @@ function ensureCategoryTables(mysqli $conn): void
         'Все',
     ];
 
+    $findDefault = prepareOrFail(
+        $conn,
+        'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) LIMIT 1'
+    );
     $insertDefault = prepareOrFail(
         $conn,
-        'INSERT INTO categories (categories, is_default) VALUES (?, 1)
-         ON DUPLICATE KEY UPDATE is_default = VALUES(is_default)'
+        'INSERT INTO categories (categories, is_default, created_by_phone) VALUES (?, 1, NULL)'
     );
+    $updateDefault = prepareOrFail(
+        $conn,
+        'UPDATE categories SET is_default = 1 WHERE id = ?'
+    );
+
     foreach ($defaultCategories as $categoryName) {
-        $insertDefault->bind_param('s', $categoryName);
-        $insertDefault->execute();
+        $findDefault->bind_param('s', $categoryName);
+        $findDefault->execute();
+        $foundRow = $findDefault->get_result()->fetch_assoc();
+
+        if ($foundRow && isset($foundRow['id'])) {
+            $foundId = (int) $foundRow['id'];
+            $updateDefault->bind_param('i', $foundId);
+            $updateDefault->execute();
+        } else {
+            $insertDefault->bind_param('s', $categoryName);
+            $insertDefault->execute();
+        }
     }
+
+    $conn->query(
+        'DELETE c1 FROM categories c1
+         INNER JOIN categories c2 ON TRIM(c1.categories) = TRIM(c2.categories) AND c1.id > c2.id'
+    );
 }
 
 function parseCustomCategoryList(string $raw): array
@@ -824,7 +847,7 @@ try {
         $services[] = $serviceRow;
     }
 
-    $categoriesStmt = prepareOrFail($conn, 'SELECT id, categories, is_default, created_by_phone FROM categories ORDER BY is_default DESC, categories ASC');
+    $categoriesStmt = prepareOrFail($conn, 'SELECT MIN(id) AS id, TRIM(categories) AS categories, MAX(is_default) AS is_default, MAX(COALESCE(created_by_phone, "")) AS created_by_phone FROM categories WHERE TRIM(categories) <> "" GROUP BY TRIM(categories) ORDER BY MAX(is_default) DESC, TRIM(categories) ASC');
     $categoriesStmt->execute();
     $categoriesRes = $categoriesStmt->get_result();
     while ($categoryRow = $categoriesRes->fetch_assoc()) {
@@ -1269,7 +1292,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
   <div class="dropdown-edit" id="socialLinkModalDropdown"></div>
 
   <div class="modal-overlay" id="categoriesModal" onclick="closeModalOnOverlay(event, 'categoriesModal')">
-    <div class="modal-content" style="position:relative;">
+    <div class="modal-content categories-modal-content" style="position:relative;">
       <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeCategoriesModal()"></button>
       <h3 class="modal-title">Категории профиля</h3>
       <div class="categories-modal-list" id="categoriesModalDefaultList"></div>

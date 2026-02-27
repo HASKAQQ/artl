@@ -1759,6 +1759,21 @@ body {
   gap: 20px;
 }
 
+
+
+.categories-modal-content {
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.categories-modal-list {
+  max-height: 40vh;
+  overflow-y: auto;
+  align-content: flex-start;
+}
+
 .modal-buttons {
   align-self: center;
 }
