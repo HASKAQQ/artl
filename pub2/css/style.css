@@ -693,6 +693,7 @@ body {
 
 .artists-page-main {
   flex: 1;
+  background: #416d92;
 }
 
 .artists-page-body .footer {
@@ -702,6 +703,7 @@ body {
 .artists-banner {
   background: #416d92;
   padding: 40px 0;
+  margin-top: 0;
 }
 
 .artists-search-wrapper {
