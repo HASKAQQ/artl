@@ -166,7 +166,6 @@ function ensureCategoryTables(mysqli $conn): void
         '3D-моделирование и визуализация',
         'Скульптура и 3D-печать',
         'Каллиграфия и леттеринг',
-        'Все',
     ];
 
     $findDefault = prepareOrFail(
@@ -205,10 +204,11 @@ function ensureCategoryTables(mysqli $conn): void
     $conn->query(
         'DELETE pc FROM profile_categories pc
          INNER JOIN categories c ON c.id = pc.category_id
-         WHERE TRIM(c.categories) = "Прочее"'
+         WHERE TRIM(c.categories) IN ("Прочее", "Все")'
     );
-    $conn->query('DELETE FROM categories WHERE TRIM(categories) = "Прочее"');
+    $conn->query('DELETE FROM categories WHERE TRIM(categories) IN ("Прочее", "Все")');
 }
+
 
 function parseCustomCategoryList(string $raw): array
 {
@@ -894,7 +894,7 @@ try {
         $services[] = $serviceRow;
     }
 
-    $categoriesStmt = prepareOrFail($conn, 'SELECT MIN(id) AS id, TRIM(categories) AS categories, MAX(is_default) AS is_default, MAX(COALESCE(created_by_phone, "")) AS created_by_phone FROM categories WHERE TRIM(categories) <> "" GROUP BY TRIM(categories) ORDER BY MAX(is_default) DESC, TRIM(categories) ASC');
+    $categoriesStmt = prepareOrFail($conn, 'SELECT MIN(id) AS id, TRIM(categories) AS categories, MAX(is_default) AS is_default, MAX(COALESCE(created_by_phone, "")) AS created_by_phone FROM categories WHERE TRIM(categories) <> "" AND TRIM(categories) <> "Все" GROUP BY TRIM(categories) ORDER BY MAX(is_default) DESC, TRIM(categories) ASC');
     $categoriesStmt->execute();
     $categoriesRes = $categoriesStmt->get_result();
     while ($categoryRow = $categoriesRes->fetch_assoc()) {

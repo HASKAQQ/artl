@@ -53,7 +53,7 @@ try {
         throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
     }
 
-    $categoriesRes = $conn->query('SELECT DISTINCT TRIM(categories) AS category_name FROM categories WHERE TRIM(categories) <> "" AND (is_default = 1 OR TRIM(COALESCE(created_by_phone, "")) = "admin") ORDER BY category_name ASC');
+    $categoriesRes = $conn->query('SELECT DISTINCT TRIM(categories) AS category_name FROM categories WHERE TRIM(categories) <> "" AND TRIM(categories) <> "Все" AND (is_default = 1 OR TRIM(COALESCE(created_by_phone, "")) = "admin") ORDER BY category_name ASC');
     if ($categoriesRes !== false) {
         while ($categoryRow = $categoriesRes->fetch_assoc()) {
             $categoryName = trim((string) ($categoryRow['category_name'] ?? ''));
