@@ -135,6 +135,8 @@ function ensureCategoryTables(mysqli $conn): void
     }
 
     $profileCategoryColumnsToAdd = [
+        'user_phone' => 'ALTER TABLE profile_categories ADD COLUMN user_phone VARCHAR(20) DEFAULT NULL',
+        'profile_user_id' => 'ALTER TABLE profile_categories ADD COLUMN profile_user_id INT UNSIGNED DEFAULT NULL',
         'category_id' => 'ALTER TABLE profile_categories ADD COLUMN category_id INT UNSIGNED DEFAULT NULL',
         'custom_category' => 'ALTER TABLE profile_categories ADD COLUMN custom_category VARCHAR(32) DEFAULT NULL',
         'created_at' => 'ALTER TABLE profile_categories ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
@@ -144,6 +146,16 @@ function ensureCategoryTables(mysqli $conn): void
         if (!isset($profileCategoryColumns[$columnName])) {
             $conn->query($sql);
         }
+    }
+
+    if ((isset($profileCategoryColumns['profile_user_id']) || isset($profileCategoryColumnsToAdd['profile_user_id']))
+        && (isset($profileCategoryColumns['user_phone']) || isset($profileCategoryColumnsToAdd['user_phone']))) {
+        $conn->query(
+            'UPDATE profile_categories pc
+             INNER JOIN users u ON u.id = pc.profile_user_id
+             SET pc.user_phone = u.phone
+             WHERE (pc.user_phone IS NULL OR pc.user_phone = "") AND pc.profile_user_id IS NOT NULL'
+        );
     }
 
     $defaultCategories = [
@@ -289,6 +301,7 @@ function getDbConnection(): mysqli
 
 $userPhone = $_SESSION['user_phone'] ?? '';
 $userName = '';
+$userId = 0;
 $avatarPath = '';
 $registeredAt = '';
 $telegramLink = '';
@@ -303,6 +316,8 @@ $defaultCategories = [];
 $selectedDefaultCategoryIds = [];
 $selectedCustomCategories = [];
 $aboutText = '';
+$profileCategoryHasUserPhone = true;
+$profileCategoryHasProfileUserId = false;
 
 if (isset($_SESSION['profile_artist_flash'])) {
     $saveMessage = (string) $_SESSION['profile_artist_flash'];
@@ -314,6 +329,21 @@ try {
 
     ensureUsersSocialColumns($conn);
     ensureCategoryTables($conn);
+
+    $profileCategoriesColumnsResult = $conn->query('SHOW COLUMNS FROM profile_categories');
+    if ($profileCategoriesColumnsResult !== false) {
+        $profileCategoryHasUserPhone = false;
+        $profileCategoryHasProfileUserId = false;
+        while ($columnRow = $profileCategoriesColumnsResult->fetch_assoc()) {
+            $field = (string) ($columnRow['Field'] ?? '');
+            if ($field === 'user_phone') {
+                $profileCategoryHasUserPhone = true;
+            }
+            if ($field === 'profile_user_id') {
+                $profileCategoryHasProfileUserId = true;
+            }
+        }
+    }
 
     if ($userPhone !== '' && isset($_GET['set_role'])) {
         $setRole = (string) $_GET['set_role'];
@@ -439,12 +469,13 @@ try {
     }
 
     if ($userPhone !== '') {
-        $stmt = prepareOrFail($conn, 'SELECT name, avatar_path, registered_at, social_telegram, social_whatsapp, social_email, about FROM users WHERE phone = ? LIMIT 1');
+        $stmt = prepareOrFail($conn, 'SELECT id, name, avatar_path, registered_at, social_telegram, social_whatsapp, social_email, about FROM users WHERE phone = ? LIMIT 1');
         $stmt->bind_param('s', $userPhone);
         $stmt->execute();
         $existing = $stmt->get_result()->fetch_assoc();
 
         if ($existing) {
+            $userId = (int) ($existing['id'] ?? 0);
             $userName = (string) ($existing['name'] ?? '');
             $avatarPath = (string) ($existing['avatar_path'] ?? '');
             $registeredAt = (string) ($existing['registered_at'] ?? '');
@@ -672,23 +703,65 @@ try {
                 $upsert->bind_param('ssss', $userPhone, $name, $avatarForDb, $about);
                 $upsert->execute();
 
-                $delProfileCategories = prepareOrFail($conn, 'DELETE FROM profile_categories WHERE user_phone = ?');
-                $delProfileCategories->bind_param('s', $userPhone);
-                $delProfileCategories->execute();
+                if ($userId <= 0) {
+                    $userIdStmt = prepareOrFail($conn, 'SELECT id FROM users WHERE phone = ? LIMIT 1');
+                    $userIdStmt->bind_param('s', $userPhone);
+                    $userIdStmt->execute();
+                    $userIdRow = $userIdStmt->get_result()->fetch_assoc();
+                    $userId = (int) ($userIdRow['id'] ?? 0);
+                }
+
+                if ($profileCategoryHasUserPhone) {
+                    $delProfileCategories = prepareOrFail($conn, 'DELETE FROM profile_categories WHERE user_phone = ?');
+                    $delProfileCategories->bind_param('s', $userPhone);
+                    $delProfileCategories->execute();
+                } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+                    $delProfileCategories = prepareOrFail($conn, 'DELETE FROM profile_categories WHERE profile_user_id = ?');
+                    $delProfileCategories->bind_param('i', $userId);
+                    $delProfileCategories->execute();
+                }
 
                 if (count($selectedCategoryIds) > 0) {
-                    $insProfileCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, category_id) VALUES (?, ?)');
-                    foreach ($selectedCategoryIds as $categoryId) {
-                        $insProfileCategory->bind_param('si', $userPhone, $categoryId);
-                        $insProfileCategory->execute();
+                    if ($profileCategoryHasUserPhone && $profileCategoryHasProfileUserId && $userId > 0) {
+                        $insProfileCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, profile_user_id, category_id) VALUES (?, ?, ?)');
+                        foreach ($selectedCategoryIds as $categoryId) {
+                            $insProfileCategory->bind_param('sii', $userPhone, $userId, $categoryId);
+                            $insProfileCategory->execute();
+                        }
+                    } elseif ($profileCategoryHasUserPhone) {
+                        $insProfileCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, category_id) VALUES (?, ?)');
+                        foreach ($selectedCategoryIds as $categoryId) {
+                            $insProfileCategory->bind_param('si', $userPhone, $categoryId);
+                            $insProfileCategory->execute();
+                        }
+                    } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+                        $insProfileCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (profile_user_id, category_id) VALUES (?, ?)');
+                        foreach ($selectedCategoryIds as $categoryId) {
+                            $insProfileCategory->bind_param('ii', $userId, $categoryId);
+                            $insProfileCategory->execute();
+                        }
                     }
                 }
 
                 if (count($customCategories) > 0) {
-                    $insCustomCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, custom_category) VALUES (?, ?)');
-                    foreach ($customCategories as $customCategory) {
-                        $insCustomCategory->bind_param('ss', $userPhone, $customCategory);
-                        $insCustomCategory->execute();
+                    if ($profileCategoryHasUserPhone && $profileCategoryHasProfileUserId && $userId > 0) {
+                        $insCustomCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, profile_user_id, custom_category) VALUES (?, ?, ?)');
+                        foreach ($customCategories as $customCategory) {
+                            $insCustomCategory->bind_param('sis', $userPhone, $userId, $customCategory);
+                            $insCustomCategory->execute();
+                        }
+                    } elseif ($profileCategoryHasUserPhone) {
+                        $insCustomCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, custom_category) VALUES (?, ?)');
+                        foreach ($customCategories as $customCategory) {
+                            $insCustomCategory->bind_param('ss', $userPhone, $customCategory);
+                            $insCustomCategory->execute();
+                        }
+                    } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+                        $insCustomCategory = prepareOrFail($conn, 'INSERT INTO profile_categories (profile_user_id, custom_category) VALUES (?, ?)');
+                        foreach ($customCategories as $customCategory) {
+                            $insCustomCategory->bind_param('is', $userId, $customCategory);
+                            $insCustomCategory->execute();
+                        }
                     }
                 }
 
@@ -763,8 +836,15 @@ try {
         ];
     }
 
-    $profileCategoriesStmt = prepareOrFail($conn, 'SELECT category_id, custom_category FROM profile_categories WHERE user_phone = ?');
-    $profileCategoriesStmt->bind_param('s', $userPhone);
+    if ($profileCategoryHasUserPhone) {
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT category_id, custom_category FROM profile_categories WHERE user_phone = ?');
+        $profileCategoriesStmt->bind_param('s', $userPhone);
+    } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT category_id, custom_category FROM profile_categories WHERE profile_user_id = ?');
+        $profileCategoriesStmt->bind_param('i', $userId);
+    } else {
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT category_id, custom_category FROM profile_categories WHERE 1 = 0');
+    }
     $profileCategoriesStmt->execute();
     $profileCategoriesRes = $profileCategoriesStmt->get_result();
     while ($profileCategoryRow = $profileCategoriesRes->fetch_assoc()) {
