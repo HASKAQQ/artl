@@ -725,13 +725,21 @@ try {
             }
 
             if ($errorMessage === '') {
-                $upsert = prepareOrFail(
+                $updateProfile = prepareOrFail(
                     $conn,
-                    'INSERT INTO users (phone, name, role, avatar_path, about) VALUES (?, ?, "Художник", ?, ?)
-                     ON DUPLICATE KEY UPDATE name = VALUES(name), avatar_path = VALUES(avatar_path), about = VALUES(about), role = VALUES(role)'
+                    'UPDATE users SET name = ?, role = "Художник", avatar_path = ?, about = ? WHERE phone = ?'
                 );
-                $upsert->bind_param('ssss', $userPhone, $name, $avatarForDb, $about);
-                $upsert->execute();
+                $updateProfile->bind_param('ssss', $name, $avatarForDb, $about, $userPhone);
+                $updateProfile->execute();
+
+                if ($updateProfile->affected_rows === 0) {
+                    $insertProfile = prepareOrFail(
+                        $conn,
+                        'INSERT INTO users (phone, name, role, avatar_path, about) VALUES (?, ?, "Художник", ?, ?)'
+                    );
+                    $insertProfile->bind_param('ssss', $userPhone, $name, $avatarForDb, $about);
+                    $insertProfile->execute();
+                }
 
                 if ($userId <= 0) {
                     $userIdStmt = prepareOrFail($conn, 'SELECT id FROM users WHERE phone = ? LIMIT 1');
