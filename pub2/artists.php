@@ -147,23 +147,16 @@ try {
             <?php if ($errorMessage !== ''): ?>
                 <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
-            <div class="row g-4">
+            <div class="artist-stripes-list">
                 <?php if (count($artists) > 0): ?>
-                    <?php foreach ($artists as $artist): ?>
-                        <div class="col-lg-4 col-md-6">
-                            <a href="profile-artist.php?user_id=<?php echo (int) $artist['id']; ?>" class="text-decoration-none text-reset d-block">
-                                <div class="artist-card">
-                                    <img src="src/image/Rectangle 55.png" alt="Работа художника" class="artist-card-bg">
-                                    <div class="artist-card-overlay">
-                                        <img src="<?php echo htmlspecialchars($artist['avatar_path'] !== '' ? $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?>" class="artist-avatar">
-                                        <div class="artist-details">
-                                            <h3 class="artist-name"><?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?></h3>
-                                            <p class="artist-specialty"><?php echo htmlspecialchars($artist['specialty'], ENT_QUOTES, 'UTF-8'); ?></p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
+                    <?php foreach ($artists as $index => $artist): ?>
+                        <a href="profile-artist.php?user_id=<?php echo (int) $artist['id']; ?>" class="artist-stripe text-decoration-none text-reset d-flex align-items-center <?php echo $index % 2 === 0 ? 'artist-stripe-light' : 'artist-stripe-dark'; ?>">
+                            <img src="<?php echo htmlspecialchars($artist['avatar_path'] !== '' ? $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?>" class="artist-avatar">
+                            <div class="artist-details">
+                                <h3 class="artist-name"><?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                                <p class="artist-specialty"><?php echo htmlspecialchars($artist['specialty'], ENT_QUOTES, 'UTF-8'); ?></p>
+                            </div>
+                        </a>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <p>Художники пока не найдены.</p>

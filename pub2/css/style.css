@@ -766,6 +766,63 @@ body {
   padding: 40px 0 60px;
 }
 
+.artist-stripes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.artist-stripe {
+  border-radius: 5px;
+  min-height: 110px;
+  padding: 12px 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.artist-stripe-light {
+  background: #ffffff;
+}
+
+.artist-stripe-dark {
+  background: #d4dfe8;
+}
+
+.artist-stripe:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.artist-stripe .artist-avatar {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border: 2px solid #000;
+  object-fit: cover;
+  position: static;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.artist-stripe .artist-details {
+  margin-left: 18px;
+  flex: 1;
+}
+
+.artist-stripe .artist-name {
+  color: #000;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  line-height: 1.2;
+}
+
+.artist-stripe .artist-specialty {
+  color: #000;
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+}
+
 .artist-card {
   position: relative;
   height: 356px;
@@ -866,41 +923,41 @@ body {
     margin-top: 15px;
   }
 
-  .artist-avatar {
-    width: 100px;
-    height: 100px;
-    left: 15px;
-    bottom: 10px;
+  .artist-stripe {
+    min-height: 96px;
+    padding: 10px 14px;
   }
 
-  .artist-details {
-    margin-left: 120px;
+  .artist-stripe .artist-avatar {
+    width: 64px;
+    height: 64px;
   }
 
-  .artist-name {
-    font-size: 18px;
+  .artist-stripe .artist-details {
+    margin-left: 12px;
   }
 
-  .artist-specialty {
+  .artist-stripe .artist-name {
+    font-size: 20px;
+  }
+
+  .artist-stripe .artist-specialty {
     font-size: 13px;
   }
 }
 
 @media (max-width: 768px) {
-  .artist-card {
-    height: 320px;
+  .artist-stripe {
+    min-height: 88px;
+    padding: 10px 12px;
   }
 
-  .artist-avatar {
-    width: 80px;
-    height: 80px;
+  .artist-stripe .artist-avatar {
+    width: 56px;
+    height: 56px;
   }
 
-  .artist-details {
-    margin-left: 95px;
-  }
-
-  .artist-name {
+  .artist-stripe .artist-name {
     font-size: 16px;
   }
 }
