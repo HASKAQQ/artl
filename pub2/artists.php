@@ -135,7 +135,7 @@ try {
     <section class="artists-banner">
         <div class="container">
             <div class="row align-items-center">
-                <div class="col-lg-7 col-md-12 mb-3 mb-lg-0">
+                <div class="col-12">
                     <form class="artists-search-wrapper" method="get">
                         <input type="text" name="q" class="form-control artists-search-input" placeholder="Поиск художников" value="<?php echo htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>">
                         <button class="artists-search-btn" type="submit">
@@ -144,18 +144,6 @@ try {
                             </svg>
                         </button>
                     </form>
-                </div>
-                <div class="col-lg-5 col-md-12 text-lg-end">
-                    <div class="dropdown">
-                        <button class="filter-dropdown dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            По популярности
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#">По популярности</a></li>
-                            <li><a class="dropdown-item" href="#">По новизне</a></li>
-                            <li><a class="dropdown-item" href="#">По рейтингу</a></li>
-                        </ul>
-                    </div>
                 </div>
             </div>
         </div>
