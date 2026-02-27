@@ -695,6 +695,7 @@ try {
         $about = trim((string) ($_POST['profile_description'] ?? ''));
         $selectedCategoryIds = parsePositiveIntList((string) ($_POST['selected_category_ids'] ?? ''));
         $customCategories = parseCustomCategoryList((string) ($_POST['custom_categories'] ?? ''));
+        $customCategoryIds = [];
 
         if ($name === '') {
             $errorMessage = 'Вы обязаны ввести имя перед сохранением профиля.';
@@ -747,11 +748,15 @@ try {
                         $findCustomInCategories->bind_param('s', $customCategory);
                         $findCustomInCategories->execute();
                         $customCategoryRow = $findCustomInCategories->get_result()->fetch_assoc();
-                        if (!$customCategoryRow) {
+                        if ($customCategoryRow && isset($customCategoryRow['id'])) {
+                            $customCategoryIds[] = (int) $customCategoryRow['id'];
+                        } else {
                             $insertCustomInCategories->bind_param('ss', $customCategory, $userPhone);
                             $insertCustomInCategories->execute();
+                            $customCategoryIds[] = (int) $insertCustomInCategories->insert_id;
                         }
                     }
+                    $customCategoryIds = array_values(array_filter(array_unique($customCategoryIds), static fn($v) => (int) $v > 0));
                 }
 
                 if ($profileCategoryHasUserPhone) {
@@ -782,6 +787,28 @@ try {
                         foreach ($selectedCategoryIds as $categoryId) {
                             $insProfileCategory->bind_param('ii', $userId, $categoryId);
                             $insProfileCategory->execute();
+                        }
+                    }
+                }
+
+                if (count($customCategoryIds) > 0) {
+                    if ($profileCategoryHasUserPhone && $profileCategoryHasProfileUserId && $userId > 0) {
+                        $insCustomCategoryId = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, profile_user_id, category_id) VALUES (?, ?, ?)');
+                        foreach ($customCategoryIds as $customCategoryId) {
+                            $insCustomCategoryId->bind_param('sii', $userPhone, $userId, $customCategoryId);
+                            $insCustomCategoryId->execute();
+                        }
+                    } elseif ($profileCategoryHasUserPhone) {
+                        $insCustomCategoryId = prepareOrFail($conn, 'INSERT INTO profile_categories (user_phone, category_id) VALUES (?, ?)');
+                        foreach ($customCategoryIds as $customCategoryId) {
+                            $insCustomCategoryId->bind_param('si', $userPhone, $customCategoryId);
+                            $insCustomCategoryId->execute();
+                        }
+                    } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
+                        $insCustomCategoryId = prepareOrFail($conn, 'INSERT INTO profile_categories (profile_user_id, category_id) VALUES (?, ?)');
+                        foreach ($customCategoryIds as $customCategoryId) {
+                            $insCustomCategoryId->bind_param('ii', $userId, $customCategoryId);
+                            $insCustomCategoryId->execute();
                         }
                     }
                 }
@@ -880,24 +907,33 @@ try {
     }
 
     if ($profileCategoryHasUserPhone) {
-        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT category_id, custom_category FROM profile_categories WHERE user_phone = ?');
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT pc.category_id, pc.custom_category, c.is_default AS category_is_default, c.categories AS category_name FROM profile_categories pc LEFT JOIN categories c ON c.id = pc.category_id WHERE pc.user_phone = ?');
         $profileCategoriesStmt->bind_param('s', $userPhone);
     } elseif ($profileCategoryHasProfileUserId && $userId > 0) {
-        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT category_id, custom_category FROM profile_categories WHERE profile_user_id = ?');
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT pc.category_id, pc.custom_category, c.is_default AS category_is_default, c.categories AS category_name FROM profile_categories pc LEFT JOIN categories c ON c.id = pc.category_id WHERE pc.profile_user_id = ?');
         $profileCategoriesStmt->bind_param('i', $userId);
     } else {
-        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT category_id, custom_category FROM profile_categories WHERE 1 = 0');
+        $profileCategoriesStmt = prepareOrFail($conn, 'SELECT pc.category_id, pc.custom_category, c.is_default AS category_is_default, c.categories AS category_name FROM profile_categories pc LEFT JOIN categories c ON c.id = pc.category_id WHERE 1 = 0');
     }
     $profileCategoriesStmt->execute();
     $profileCategoriesRes = $profileCategoriesStmt->get_result();
     while ($profileCategoryRow = $profileCategoriesRes->fetch_assoc()) {
         $categoryId = (int) ($profileCategoryRow['category_id'] ?? 0);
         $customCategory = trim((string) ($profileCategoryRow['custom_category'] ?? ''));
-        if ($categoryId > 0) {
-            $selectedDefaultCategoryIds[$categoryId] = $categoryId;
-        }
+        $categoryName = trim((string) ($profileCategoryRow['category_name'] ?? ''));
+        $categoryIsDefault = (int) ($profileCategoryRow['category_is_default'] ?? 1) === 1;
+
         if ($customCategory !== '') {
             $selectedCustomCategories[$customCategory] = $customCategory;
+            continue;
+        }
+
+        if ($categoryId > 0) {
+            if ($categoryIsDefault) {
+                $selectedDefaultCategoryIds[$categoryId] = $categoryId;
+            } elseif ($categoryName !== '') {
+                $selectedCustomCategories[$categoryName] = $categoryName;
+            }
         }
     }
 
