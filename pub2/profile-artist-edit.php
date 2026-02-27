@@ -166,7 +166,6 @@ function ensureCategoryTables(mysqli $conn): void
         '3D-моделирование и визуализация',
         'Скульптура и 3D-печать',
         'Каллиграфия и леттеринг',
-        'Прочее',
         'Все',
     ];
 
@@ -202,6 +201,13 @@ function ensureCategoryTables(mysqli $conn): void
         'DELETE c1 FROM categories c1
          INNER JOIN categories c2 ON TRIM(c1.categories) = TRIM(c2.categories) AND c1.id > c2.id'
     );
+
+    $conn->query(
+        'DELETE pc FROM profile_categories pc
+         INNER JOIN categories c ON c.id = pc.category_id
+         WHERE TRIM(c.categories) = "Прочее"'
+    );
+    $conn->query('DELETE FROM categories WHERE TRIM(categories) = "Прочее"');
 }
 
 function parseCustomCategoryList(string $raw): array
