@@ -1769,6 +1769,11 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
       }
     }
 
+    function applyCategoriesSelection() {
+      syncCategoriesHiddenInputs();
+      renderSelectedCategoriesInProfile();
+    }
+
     function renderCategoriesModal() {
       if (categoriesModalDefaultListEl) {
         categoriesModalDefaultListEl.innerHTML = '';
@@ -1784,6 +1789,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
             } else {
               selectedDefaultCategoryIdsData.add(categoryId);
             }
+            applyCategoriesSelection();
             renderCategoriesModal();
           });
           categoriesModalDefaultListEl.appendChild(btn);
@@ -1803,6 +1809,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
           removeBtn.textContent = '×';
           removeBtn.addEventListener('click', () => {
             selectedCustomCategoriesData.splice(index, 1);
+            applyCategoriesSelection();
             renderCategoriesModal();
           });
 
@@ -1844,14 +1851,14 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
         }
         selectedCustomCategoriesData.push(value);
         newCustomCategoryInputEl.value = '';
+        applyCategoriesSelection();
         renderCategoriesModal();
       });
     }
 
     if (saveCategoriesBtnEl) {
       saveCategoriesBtnEl.addEventListener('click', () => {
-        syncCategoriesHiddenInputs();
-        renderSelectedCategoriesInProfile();
+        applyCategoriesSelection();
         closeCategoriesModal();
       });
     }
@@ -1865,8 +1872,14 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
       });
     }
 
-    syncCategoriesHiddenInputs();
-    renderSelectedCategoriesInProfile();
+    const profileFormEl = document.getElementById('profileForm');
+    if (profileFormEl) {
+      profileFormEl.addEventListener('submit', () => {
+        applyCategoriesSelection();
+      });
+    }
+
+    applyCategoriesSelection();
 
     function slideCardImage(buttonEl, direction) {
       const card = buttonEl.closest('.portfolio-card, .service-item');
