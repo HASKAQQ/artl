@@ -13,6 +13,18 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
     return $stmt;
 }
 
+function hasColumn(mysqli $conn, string $table, string $column): bool
+{
+    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
+    if ($safeTable === '' || $safeColumn === '') {
+        return false;
+    }
+
+    $result = $conn->query("SHOW COLUMNS FROM {$safeTable} LIKE '{$safeColumn}'");
+    return $result !== false && $result->num_rows > 0;
+}
+
 try {
     $conn = new mysqli('MySQL-8.0', 'root', '');
     if ($conn->connect_error) {
@@ -51,13 +63,19 @@ try {
         $artistId = (int) ($artist['id'] ?? 0);
         $specialty = 'Художник';
 
+        $categoryOrderSql = ' ORDER BY pc.category_id DESC';
+        if (hasColumn($conn, 'profile_categories', 'id')) {
+            $categoryOrderSql = ' ORDER BY pc.id DESC';
+        } elseif (hasColumn($conn, 'profile_categories', 'created_at')) {
+            $categoryOrderSql = ' ORDER BY pc.created_at DESC';
+        }
+
         $categoryStmt = prepareOrFail(
             $conn,
             'SELECT c.categories AS category_name
              FROM profile_categories pc
              LEFT JOIN categories c ON c.id = pc.category_id
-             WHERE pc.profile_user_id = ? OR pc.user_phone = ?
-             ORDER BY pc.id DESC
+             WHERE pc.profile_user_id = ? OR pc.user_phone = ?' . $categoryOrderSql . '
              LIMIT 1'
         );
         $artistPhone = (string) ($artist['phone'] ?? '');
