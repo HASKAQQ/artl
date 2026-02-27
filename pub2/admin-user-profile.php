@@ -15,6 +15,34 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
     return $stmt;
 }
 
+
+function hasColumn(mysqli $conn, string $table, string $column): bool
+{
+    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
+    if ($safeTable === '' || $safeColumn === '') {
+        return false;
+    }
+    $result = $conn->query("SHOW COLUMNS FROM {$safeTable} LIKE '{$safeColumn}'");
+    return $result !== false && $result->num_rows > 0;
+}
+
+function formatTimeAgo(?string $datetime): string
+{
+    if (!$datetime) {
+        return '—';
+    }
+    $ts = strtotime($datetime);
+    if ($ts === false) {
+        return $datetime;
+    }
+    $diff = time() - $ts;
+    if ($diff < 60) return 'только что';
+    if ($diff < 3600) return floor($diff / 60) . ' мин назад';
+    if ($diff < 86400) return floor($diff / 3600) . ' ч назад';
+    return floor($diff / 86400) . ' дн назад';
+}
+
 function getDbConnection(): mysqli
 {
     $conn = new mysqli('MySQL-8.0', 'root', '');
@@ -86,6 +114,10 @@ $errorMessage = '';
 $user = null;
 $userCategories = [];
 $userAbout = '';
+$portfolioWorks = [];
+$services = [];
+$orders = [];
+$reviews = [];
 
 try {
     $conn = getDbConnection();
@@ -129,6 +161,63 @@ try {
             } elseif ($categoryName !== '') {
                 $userCategories[$categoryName] = $categoryName;
             }
+        }
+    }
+
+
+    $portfolioStmt = prepareOrFail($conn, 'SELECT id, title, created_at FROM portfolio_works WHERE user_phone = ? ORDER BY id DESC');
+    $portfolioStmt->bind_param('s', $userPhone);
+    $portfolioStmt->execute();
+    $portfolioRes = $portfolioStmt->get_result();
+    while ($work = $portfolioRes->fetch_assoc()) {
+        $imgStmt = prepareOrFail($conn, 'SELECT image_path FROM portfolio_images WHERE work_id = ? ORDER BY sort_order ASC, id ASC');
+        $workId = (int) ($work['id'] ?? 0);
+        $imgStmt->bind_param('i', $workId);
+        $imgStmt->execute();
+        $imgRes = $imgStmt->get_result();
+        $images = [];
+        while ($img = $imgRes->fetch_assoc()) {
+            $path = trim((string) ($img['image_path'] ?? ''));
+            if ($path !== '') {
+                $images[] = $path;
+            }
+        }
+        $work['images'] = $images;
+        $portfolioWorks[] = $work;
+    }
+
+    $servicesStmt = prepareOrFail($conn, 'SELECT id, title, category, price, description, image_path, created_at FROM artist_services WHERE user_phone = ? ORDER BY id DESC');
+    $servicesStmt->bind_param('s', $userPhone);
+    $servicesStmt->execute();
+    $servicesRes = $servicesStmt->get_result();
+    while ($service = $servicesRes->fetch_assoc()) {
+        $services[] = $service;
+    }
+
+    if (hasColumn($conn, 'orders', 'artist_id')) {
+        $ordersSql = 'SELECT id, status, order_date';
+        if (hasColumn($conn, 'orders', 'service_id')) {
+            $ordersSql .= ', service_id';
+        }
+        $ordersSql .= ' FROM orders WHERE artist_id = ? ORDER BY id DESC';
+        $ordersStmt = prepareOrFail($conn, $ordersSql);
+        $userNumericId = (int) ($user['id'] ?? 0);
+        $ordersStmt->bind_param('i', $userNumericId);
+        $ordersStmt->execute();
+        $ordersRes = $ordersStmt->get_result();
+        while ($order = $ordersRes->fetch_assoc()) {
+            $orders[] = $order;
+        }
+    }
+
+    if (hasColumn($conn, 'reviews', 'user_id') && hasColumn($conn, 'reviews', 'reviews')) {
+        $reviewsStmt = prepareOrFail($conn, 'SELECT id, reviews FROM reviews WHERE user_id = ? ORDER BY id DESC');
+        $userNumericId = (int) ($user['id'] ?? 0);
+        $reviewsStmt->bind_param('i', $userNumericId);
+        $reviewsStmt->execute();
+        $reviewsRes = $reviewsStmt->get_result();
+        while ($review = $reviewsRes->fetch_assoc()) {
+            $reviews[] = $review;
         }
     }
 } catch (Throwable $e) {
@@ -219,11 +308,14 @@ $isBlocked = $user && (int) $user['is_blocked'] === 1;
         </div>
         <div class="section-content" id="portfolioContent">
           <div class="gallary-wrapper row g-3">
-            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image"></div></div>
-            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 76.png" alt="Portfolio" class="portfolio-image"></div></div>
-            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 78.png" alt="Portfolio" class="portfolio-image"></div></div>
-            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 76.png" alt="Portfolio" class="portfolio-image"></div></div>
-            <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="src/image/Rectangle 55.png" alt="Portfolio" class="portfolio-image"></div></div>
+            <?php if (count($portfolioWorks) > 0): ?>
+              <?php foreach ($portfolioWorks as $work): ?>
+                <?php $preview = count($work['images']) > 0 ? $work['images'][0] : 'src/image/Rectangle 55.png'; ?>
+                <div class="col-4 col-lg-3"><div class="portfolio-card"><img src="<?php echo htmlspecialchars((string) $preview, ENT_QUOTES, 'UTF-8'); ?>" alt="Portfolio" class="portfolio-image"></div></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p>Портфолио пока не заполнено.</p>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -239,45 +331,51 @@ $isBlocked = $user && (int) $user['is_blocked'] === 1;
         </div>
         <div class="section-content" id="servicesContent">
           <div class="services-grid row">
-            <div class="col-6 col-lg-4">
-              <div class="service-item card h-100">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="service-image">
-                <div class="service-info">
-                  <h3 class="service-title">Название услуги</h3>
-                  <p class="service-category">3D-моделирование</p>
-                  <div class="service-bottom">
-                    <p class="service-price">от 30 000р</p>
-                    <p class="service-time">3 часа назад</p>
+            <?php if (count($services) > 0): ?>
+              <?php foreach ($services as $service): ?>
+                <?php $serviceImage = trim((string) ($service['image_path'] ?? '')) !== '' ? (string) $service['image_path'] : 'src/image/Rectangle 55.png'; ?>
+                <div class="col-6 col-lg-4">
+                  <div class="service-item card h-100">
+                    <img src="<?php echo htmlspecialchars($serviceImage, ENT_QUOTES, 'UTF-8'); ?>" alt="Service" class="service-image">
+                    <div class="service-info">
+                      <h3 class="service-title"><?php echo htmlspecialchars((string) ($service['title'] ?? 'Услуга'), ENT_QUOTES, 'UTF-8'); ?></h3>
+                      <p class="service-category"><?php echo htmlspecialchars((string) ($service['category'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></p>
+                      <div class="service-bottom">
+                        <p class="service-price">от <?php echo htmlspecialchars((string) ($service['price'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?>р</p>
+                        <p class="service-time"><?php echo htmlspecialchars(formatTimeAgo((string) ($service['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div class="col-6 col-lg-4">
-              <div class="service-item card h-100">
-                <img src="src/image/Rectangle 76.png" alt="Service" class="service-image">
-                <div class="service-info">
-                  <h3 class="service-title">Название услуги</h3>
-                  <p class="service-category">3D-моделирование</p>
-                  <div class="service-bottom">
-                    <p class="service-price">от 30 000р</p>
-                    <p class="service-time">3 часа назад</p>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p>Услуги пока не добавлены.</p>
+            <?php endif; ?>
+          </div></div>
+        </div>
+      </div>
+
+
+      <div class="section-collapsible" id="ordersSection">
+        <div class="section-header" onclick="toggleSection('orders')">
+          <h2>Заказы</h2>
+          <span class="toggle-arrow" id="ordersArrow">▼</span>
+        </div>
+        <div class="section-content" id="ordersContent">
+          <div class="reviews-list">
+            <?php if (count($orders) > 0): ?>
+              <?php foreach ($orders as $order): ?>
+                <div class="review-card">
+                  <img src="src/image/Ellipse 2.png" alt="Order" class="review-avatar">
+                  <div class="review-content">
+                    <h4 class="review-name">Заказ #<?php echo (int) ($order['id'] ?? 0); ?></h4>
+                    <p class="review-text">Статус: <?php echo htmlspecialchars((string) ($order['status'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?><?php if (!empty($order['order_date'])): ?> · Дата: <?php echo htmlspecialchars((string) $order['order_date'], ENT_QUOTES, 'UTF-8'); ?><?php endif; ?></p>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div class="col-6 col-lg-4">
-              <div class="service-item card h-100">
-                <img src="src/image/Rectangle 78.png" alt="Service" class="service-image">
-                <div class="service-info">
-                  <h3 class="service-title">Название услуги</h3>
-                  <p class="service-category">3D-моделирование</p>
-                  <div class="service-bottom">
-                    <p class="service-price">от 30 000р</p>
-                    <p class="service-time">3 часа назад</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p>Заказов пока нет.</p>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -289,18 +387,16 @@ $isBlocked = $user && (int) $user['is_blocked'] === 1;
         </div>
         <div class="section-content" id="reviewsContent">
           <div class="reviews-list">
-            <div class="review-card">
-              <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
-              <div class="review-content"><h4 class="review-name">Ермакова Мария</h4><p class="review-text">Большое спасибо! Выполнено все быстро качественно. Буду обращаться еще.</p></div>
-            </div>
-            <div class="review-card">
-              <img src="src/image/Ellipse 3.png" alt="User" class="review-avatar">
-              <div class="review-content"><h4 class="review-name">Елько Александр</h4><p class="review-text">Большое спасибо!</p></div>
-            </div>
-            <div class="review-card">
-              <img src="src/image/Ellipse 4.png" alt="User" class="review-avatar">
-              <div class="review-content"><h4 class="review-name">Строгая Наталья</h4><p class="review-text">Выполнено все быстро качественно. Буду обращаться еще.</p></div>
-            </div>
+            <?php if (count($reviews) > 0): ?>
+              <?php foreach ($reviews as $review): ?>
+                <div class="review-card">
+                  <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
+                  <div class="review-content"><h4 class="review-name">Отзыв #<?php echo (int) ($review['id'] ?? 0); ?></h4><p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p></div>
+                </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p>Отзывов пока нет.</p>
+            <?php endif; ?>
           </div>
         </div>
       </div>
