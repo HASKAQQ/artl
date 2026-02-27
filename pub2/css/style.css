@@ -684,6 +684,21 @@ body {
   }
 }
 
+
+.artists-page-body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.artists-page-main {
+  flex: 1;
+}
+
+.artists-page-body .footer {
+  margin-top: auto;
+}
+
 .artists-banner {
   background: #416d92;
   padding: 40px 0;

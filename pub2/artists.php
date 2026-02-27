@@ -128,10 +128,11 @@ try {
     <link rel="stylesheet" href="css/style.css">
   <script src="js/main.js" defer></script>
 </head>
-<body>
+<body class="artists-page-body">
 
     <?php include 'header.php'; ?>
 
+    <main class="artists-page-main">
     <section class="artists-banner">
         <div class="container">
             <div class="row align-items-center">
@@ -184,6 +185,8 @@ try {
             <?php endif; ?>
         </div>
     </section>
+
+    </main>
 
     <?php include 'footer.php'; ?>
 
