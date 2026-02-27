@@ -70,8 +70,7 @@ try {
 
     $userColumns = ['u.id AS artist_user_id', 'u.name', 'u.avatar_path', 'u.phone'];
     $userColumns[] = hasColumn($conn, 'users', 'about') ? 'u.about' : 'NULL AS about';
-    $userColumns[] = hasColumn($conn, 'users', 'social_telegram') ? 'u.social_telegram' : 'NULL AS social_telegram';
-    $userColumns[] = hasColumn($conn, 'users', 'social_whatsapp') ? 'u.social_whatsapp' : 'NULL AS social_whatsapp';
+    $userColumns[] = hasColumn($conn, 'users', 'social_vk') ? 'u.social_vk' : 'NULL AS social_vk';
     $userColumns[] = hasColumn($conn, 'users', 'social_email') ? 'u.social_email' : 'NULL AS social_email';
 
     $serviceStmt = prepareOrFail(
@@ -97,8 +96,7 @@ try {
         'avatar_path' => trim((string) ($service['avatar_path'] ?? '')),
         'about' => trim((string) ($service['about'] ?? '')),
         'phone' => trim((string) ($service['phone'] ?? '')),
-        'social_telegram' => trim((string) ($service['social_telegram'] ?? '')),
-        'social_whatsapp' => trim((string) ($service['social_whatsapp'] ?? '')),
+        'social_vk' => trim((string) ($service['social_vk'] ?? '')),
         'social_email' => trim((string) ($service['social_email'] ?? '')),
     ];
     $artistUserId = (int) ($service['artist_user_id'] ?? 0);
@@ -203,14 +201,11 @@ try {
               <div class="order-page-contacts">
                 <span class="order-page-contacts-label">Связаться через</span>
                 <div class="order-page-contacts-icons">
-                  <a href="<?php echo htmlspecialchars(trim((string) ($artist['social_telegram'] ?? '')) !== '' ? (string) $artist['social_telegram'] : '#', ENT_QUOTES, 'UTF-8'); ?>" class="order-page-contact-icon" target="_blank" rel="noopener noreferrer">
-                    <img src="src/image/icons/icons8-телеграм-100 1.svg" alt="Telegram">
+                  <a href="<?php echo htmlspecialchars(trim((string) ($artist['social_vk'] ?? '')) !== '' ? (string) $artist['social_vk'] : '#', ENT_QUOTES, 'UTF-8'); ?>" class="order-page-contact-icon<?php echo trim((string) ($artist['social_vk'] ?? '')) === '' ? ' is-empty' : ''; ?>" target="_blank" rel="noopener noreferrer" <?php echo trim((string) ($artist['social_vk'] ?? '')) === '' ? 'aria-disabled="true" tabindex="-1"' : ''; ?>>
+                    <img src="src/image/icons/vk-icon.svg" alt="VK">
                   </a>
-                  <a href="<?php echo htmlspecialchars(trim((string) ($artist['social_whatsapp'] ?? '')) !== '' ? (string) $artist['social_whatsapp'] : '#', ENT_QUOTES, 'UTF-8'); ?>" class="order-page-contact-icon" target="_blank" rel="noopener noreferrer">
-                    <img src="src/image/icons/icons8-whatsapp-100 1.svg" alt="WhatsApp">
-                  </a>
-                  <a href="<?php echo htmlspecialchars(trim((string) ($artist['social_email'] ?? '')) !== '' ? 'mailto:' . (string) $artist['social_email'] : '#', ENT_QUOTES, 'UTF-8'); ?>" class="order-page-contact-icon">
-                    <img src="src/image/icons/icons8-почта-100 1.svg" alt="Email">
+                  <a href="<?php echo htmlspecialchars(trim((string) ($artist['social_email'] ?? '')) !== '' ? 'mailto:' . (string) $artist['social_email'] : '#', ENT_QUOTES, 'UTF-8'); ?>" class="order-page-contact-icon<?php echo trim((string) ($artist['social_email'] ?? '')) === '' ? ' is-empty' : ''; ?>" <?php echo trim((string) ($artist['social_email'] ?? '')) === '' ? 'aria-disabled="true" tabindex="-1"' : ''; ?>>
+                    <img src="src/image/icons/icons8-почта-100 1.svg" alt="Email" class="contact-link-email-icon">
                   </a>
                 </div>
               </div>

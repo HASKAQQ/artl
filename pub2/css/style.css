@@ -2653,6 +2653,17 @@ a.contact-link-btn.is-empty {
   transition: opacity 0.3s ease;
 }
 
+.order-page-contact-icon .contact-link-email-icon {
+  width: 55px;
+  height: 55px;
+}
+
+.order-page-contact-icon.is-empty {
+  filter: grayscale(1);
+  opacity: .5;
+  pointer-events: none;
+}
+
 .order-page-contact-icon:hover img {
   opacity: 0.7;
 }

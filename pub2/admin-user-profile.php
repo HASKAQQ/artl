@@ -85,6 +85,12 @@ function getDbConnection(): mysqli
     if (!isset($columns['about'])) {
         $conn->query('ALTER TABLE users ADD COLUMN about TEXT DEFAULT NULL');
     }
+    if (!isset($columns['social_vk'])) {
+        $conn->query('ALTER TABLE users ADD COLUMN social_vk VARCHAR(255) DEFAULT NULL');
+    }
+    if (!isset($columns['social_email'])) {
+        $conn->query('ALTER TABLE users ADD COLUMN social_email VARCHAR(255) DEFAULT NULL');
+    }
 
     $conn->query(
         'CREATE TABLE IF NOT EXISTS categories (
@@ -118,6 +124,8 @@ $portfolioWorks = [];
 $services = [];
 $orders = [];
 $reviews = [];
+$userVk = '';
+$userEmail = '';
 
 try {
     $conn = getDbConnection();
@@ -127,7 +135,7 @@ try {
         throw new RuntimeException('Некорректный идентификатор пользователя.');
     }
 
-    $stmt = prepareOrFail($conn, 'SELECT id, name, phone, role, avatar_path, is_blocked, registered_at, about FROM users WHERE id = ? LIMIT 1');
+    $stmt = prepareOrFail($conn, 'SELECT id, name, phone, role, avatar_path, is_blocked, registered_at, about, social_vk, social_email FROM users WHERE id = ? LIMIT 1');
 
     $stmt->bind_param('i', $userId);
     $stmt->execute();
@@ -139,6 +147,8 @@ try {
     }
 
     $userAbout = trim((string) ($user['about'] ?? ''));
+    $userVk = trim((string) ($user['social_vk'] ?? ''));
+    $userEmail = trim((string) ($user['social_email'] ?? ''));
     $userPhone = trim((string) ($user['phone'] ?? ''));
 
     if ($userPhone !== '') {
@@ -229,6 +239,8 @@ $displayRole = $user ? (string) ($user['role'] ?: 'Художник') : 'Худ�
 $displayDate = $user ? date('d.m.Y', strtotime((string) $user['registered_at'])) : '—';
 $avatarPath = $user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : 'src/image/Ellipse 2.png';
 $isBlocked = $user && (int) $user['is_blocked'] === 1;
+$vkHref = $userVk !== '' ? $userVk : '';
+$emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -260,9 +272,8 @@ $isBlocked = $user && (int) $user['is_blocked'] === 1;
             <img src="<?php echo htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8'); ?>" alt="Avatar" class="profile-avatar" id="avatarImage">
           </div>
           <div class="profile-contacts">
-            <a href="javascript:void(0)" aria-label="Telegram"><img src="src/image/icons/icons8-телеграм-100 1.svg" alt="Telegram"></a>
-            <a href="javascript:void(0)" aria-label="WhatsApp"><img src="src/image/icons/icons8-whatsapp-100 1.svg" alt="WhatsApp"></a>
-            <a href="javascript:void(0)" aria-label="Email"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email"></a>
+            <a class="contact-link-btn<?php echo $vkHref === '' ? ' is-empty' : ''; ?>" <?php echo $vkHref === '' ? 'aria-disabled="true"' : 'href="' . htmlspecialchars($vkHref, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer"'; ?>><img src="src/image/icons/vk-icon.svg" alt="VK"></a>
+            <a class="contact-link-btn<?php echo $emailHref === '' ? ' is-empty' : ''; ?>" <?php echo $emailHref === '' ? 'aria-disabled="true"' : 'href="' . htmlspecialchars($emailHref, ENT_QUOTES, 'UTF-8') . '"'; ?>><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email" class="contact-link-email-icon"></a>
           </div>
 
         </div>
