@@ -133,7 +133,6 @@ try {
     <div class="container">
       <h1 class="services-page-title">Все категории</h1>
       <div class="category-buttons">
-        <a href="uslugi.php" class="category-button <?php echo $selectedCategory === '' ? 'active' : ''; ?>">Все</a>
         <?php foreach ($categories as $categoryName): ?>
           <a href="uslugi.php?category=<?php echo urlencode($categoryName); ?>" class="category-button <?php echo $selectedCategory === $categoryName ? 'active' : ''; ?>"><?php echo htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8'); ?></a>
         <?php endforeach; ?>

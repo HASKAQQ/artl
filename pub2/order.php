@@ -178,11 +178,17 @@ try {
 
           <div class="col-lg-7">
             <div class="order-page-artist">
-              <div class="order-page-avatar-wrapper">
-                <img src="<?php echo htmlspecialchars(trim((string) ($artist['avatar_path'] ?? '')) !== '' ? (string) $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="order-page-avatar">
-              </div>
+              <?php if ((int) ($artist['user_id'] ?? 0) > 0): ?>
+                <a href="profile-artist.php?user_id=<?php echo (int) $artist['user_id']; ?>" class="text-decoration-none text-reset d-inline-block">
+              <?php endif; ?>
+                  <div class="order-page-avatar-wrapper">
+                    <img src="<?php echo htmlspecialchars(trim((string) ($artist['avatar_path'] ?? '')) !== '' ? (string) $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="order-page-avatar">
+                  </div>
 
-              <h2 class="order-page-artist-name"><?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></h2>
+                  <h2 class="order-page-artist-name"><?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></h2>
+              <?php if ((int) ($artist['user_id'] ?? 0) > 0): ?>
+                </a>
+              <?php endif; ?>
 
               <?php if (count($artistTags) > 0): ?>
                 <div class="order-page-tags">
