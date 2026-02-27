@@ -269,7 +269,7 @@ try {
                                 </td>
                                 <td>
                                     <?php if ((string) $category['created_by_phone'] !== '' && (string) $category['created_by_phone'] !== 'admin' && (int) $category['creator_user_id'] > 0): ?>
-                                        <a href="admin-users.php?view_id=<?php echo (int) $category['creator_user_id']; ?>" aria-label="Смотреть пользователя категории">
+                                        <a href="admin-user-profile.php?user_id=<?php echo (int) $category['creator_user_id']; ?>" aria-label="Смотреть пользователя категории">
                                             <img src="src/image/icons/icons8-показать-100 1.svg" alt="">
                                         </a>
                                     <?php else: ?>

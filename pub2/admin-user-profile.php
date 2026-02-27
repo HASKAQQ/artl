@@ -6,6 +6,15 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
     exit;
 }
 
+function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
+{
+    $stmt = $conn->prepare($sql);
+    if ($stmt === false) {
+        throw new RuntimeException('Ошибка SQL: ' . $conn->error);
+    }
+    return $stmt;
+}
+
 function getDbConnection(): mysqli
 {
     $conn = new mysqli('MySQL-8.0', 'root', '');
@@ -34,11 +43,49 @@ function getDbConnection(): mysqli
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
+
+    $columnsRes = $conn->query('SHOW COLUMNS FROM users');
+    $columns = [];
+    if ($columnsRes !== false) {
+        while ($column = $columnsRes->fetch_assoc()) {
+            $field = (string) ($column['Field'] ?? '');
+            if ($field !== '') {
+                $columns[$field] = true;
+            }
+        }
+    }
+    if (!isset($columns['about'])) {
+        $conn->query('ALTER TABLE users ADD COLUMN about TEXT DEFAULT NULL');
+    }
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS categories (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            categories VARCHAR(255) NOT NULL,
+            is_default TINYINT(1) NOT NULL DEFAULT 1,
+            created_by_phone VARCHAR(20) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS profile_categories (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_phone VARCHAR(20) DEFAULT NULL,
+            profile_user_id INT UNSIGNED DEFAULT NULL,
+            category_id INT UNSIGNED DEFAULT NULL,
+            custom_category VARCHAR(32) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
     return $conn;
 }
 
 $errorMessage = '';
 $user = null;
+$userCategories = [];
+$userAbout = '';
 
 try {
     $conn = getDbConnection();
@@ -48,10 +95,7 @@ try {
         throw new RuntimeException('Некорректный идентификатор пользователя.');
     }
 
-    $stmt = $conn->prepare('SELECT id, name, phone, role, avatar_path, is_blocked, registered_at FROM users WHERE id = ? LIMIT 1');
-    if ($stmt === false) {
-        throw new RuntimeException('Ошибка SQL: ' . $conn->error);
-    }
+    $stmt = prepareOrFail($conn, 'SELECT id, name, phone, role, avatar_path, is_blocked, registered_at, about FROM users WHERE id = ? LIMIT 1');
 
     $stmt->bind_param('i', $userId);
     $stmt->execute();
@@ -60,6 +104,32 @@ try {
 
     if (!$user) {
         throw new RuntimeException('Пользователь не найден.');
+    }
+
+    $userAbout = trim((string) ($user['about'] ?? ''));
+    $userPhone = trim((string) ($user['phone'] ?? ''));
+
+    if ($userPhone !== '') {
+        $catStmt = prepareOrFail(
+            $conn,
+            'SELECT pc.custom_category, c.categories AS category_name, c.is_default AS category_is_default
+             FROM profile_categories pc
+             LEFT JOIN categories c ON c.id = pc.category_id
+             WHERE pc.user_phone = ? OR pc.profile_user_id = ?'
+        );
+        $userIdForCategories = (int) ($user['id'] ?? 0);
+        $catStmt->bind_param('si', $userPhone, $userIdForCategories);
+        $catStmt->execute();
+        $catRes = $catStmt->get_result();
+        while ($catRow = $catRes->fetch_assoc()) {
+            $customCategory = trim((string) ($catRow['custom_category'] ?? ''));
+            $categoryName = trim((string) ($catRow['category_name'] ?? ''));
+            if ($customCategory !== '') {
+                $userCategories[$customCategory] = $customCategory;
+            } elseif ($categoryName !== '') {
+                $userCategories[$categoryName] = $categoryName;
+            }
+        }
     }
 } catch (Throwable $e) {
     $errorMessage = $e->getMessage();
@@ -124,12 +194,16 @@ $isBlocked = $user && (int) $user['is_blocked'] === 1;
           <p class="profile-registration">Дата регистрации: <?php echo htmlspecialchars($displayDate, ENT_QUOTES, 'UTF-8'); ?></p>
 
           <div class="profile-tags">
-            <p class="profile-tag">3D-моделирование и визуализация</p>
-            <p class="profile-tag">Графический дизайн</p>
-            <p class="profile-tag">Цифровая живопись</p>
+            <?php if (count($userCategories) > 0): ?>
+              <?php foreach ($userCategories as $categoryName): ?>
+                <p class="profile-tag"><?php echo htmlspecialchars((string) $categoryName, ENT_QUOTES, 'UTF-8'); ?></p>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p class="profile-tag">Категории не указаны</p>
+            <?php endif; ?>
           </div>
 
-          <p class="profile-description-main">О себе...</p>
+          <p class="profile-description-main"><?php echo htmlspecialchars($userAbout !== '' ? $userAbout : 'О себе не указано', ENT_QUOTES, 'UTF-8'); ?></p>
         </div>
 
       </div>
