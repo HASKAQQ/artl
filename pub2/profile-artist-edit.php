@@ -740,6 +740,20 @@ try {
                     $userId = (int) ($userIdRow['id'] ?? 0);
                 }
 
+                if (count($customCategories) > 0) {
+                    $findCustomInCategories = prepareOrFail($conn, 'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) LIMIT 1');
+                    $insertCustomInCategories = prepareOrFail($conn, 'INSERT INTO categories (categories, is_default, created_by_phone) VALUES (?, 0, ?)');
+                    foreach ($customCategories as $customCategory) {
+                        $findCustomInCategories->bind_param('s', $customCategory);
+                        $findCustomInCategories->execute();
+                        $customCategoryRow = $findCustomInCategories->get_result()->fetch_assoc();
+                        if (!$customCategoryRow) {
+                            $insertCustomInCategories->bind_param('ss', $customCategory, $userPhone);
+                            $insertCustomInCategories->execute();
+                        }
+                    }
+                }
+
                 if ($profileCategoryHasUserPhone) {
                     $delProfileCategories = prepareOrFail($conn, 'DELETE FROM profile_categories WHERE user_phone = ?');
                     $delProfileCategories->bind_param('s', $userPhone);
