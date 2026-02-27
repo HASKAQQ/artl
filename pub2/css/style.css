@@ -521,6 +521,22 @@ body {
   box-shadow: 0 0 0 3px rgba(65, 109, 146, 0.3);
 }
 
+
+.services-page-body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.services-page-main {
+  flex: 1;
+  background: #fff;
+}
+
+.services-page-body .footer {
+  margin-top: auto;
+}
+
 /* Services Grid */
 .services-grid-section {
   background: #fff;

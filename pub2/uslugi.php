@@ -125,10 +125,11 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
   <script src="js/main.js" defer></script>
 </head>
-<body>
+<body class="services-page-body">
 
 <?php include 'header.php'; ?>
 
+  <main class="services-page-main">
   <section class="services-banner">
     <div class="container">
       <h1 class="services-page-title">Все категории</h1>
@@ -180,6 +181,8 @@ try {
       </div>
     </section>
   <?php endif; ?>
+
+  </main>
 
   <?php include 'footer.php'; ?>
 
