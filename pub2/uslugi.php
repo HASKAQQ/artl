@@ -4,6 +4,8 @@ $categories = [];
 $adminCategories = [];
 $errorMessage = '';
 $selectedCategory = trim((string) ($_GET['category'] ?? ''));
+$searchQuery = trim((string) ($_GET['q'] ?? ''));
+$priceFilter = trim((string) ($_GET['price'] ?? ''));
 $otherCategoryKey = '__other__';
 $initialVisibleServices = 9;
 
@@ -15,6 +17,20 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
     }
 
     return $stmt;
+}
+
+
+function buildServicesFilterUrl(string $category, string $searchQuery, string $priceFilter): string
+{
+    $params = ['category' => $category];
+    if ($searchQuery !== '') {
+        $params['q'] = $searchQuery;
+    }
+    if ($priceFilter !== '') {
+        $params['price'] = $priceFilter;
+    }
+
+    return 'uslugi.php?' . http_build_query($params);
 }
 
 function formatTimeAgo(string $datetime): string
@@ -69,24 +85,61 @@ try {
             LEFT JOIN users u ON u.phone = s.user_phone';
     $types = '';
     $params = [];
+    $conditions = [];
 
     if ($selectedCategory !== '') {
         if ($selectedCategory === $otherCategoryKey) {
             if (count($adminCategories) > 0) {
                 $placeholders = implode(', ', array_fill(0, count($adminCategories), '?'));
-                $sql .= ' WHERE TRIM(COALESCE(s.category, "")) <> "" AND s.category NOT IN (' . $placeholders . ')';
-                $types = str_repeat('s', count($adminCategories));
+                $conditions[] = 'TRIM(COALESCE(s.category, "")) <> "" AND s.category NOT IN (' . $placeholders . ')';
+                $types .= str_repeat('s', count($adminCategories));
                 foreach ($adminCategories as $adminCategoryName) {
                     $params[] = $adminCategoryName;
                 }
             } else {
-                $sql .= ' WHERE TRIM(COALESCE(s.category, "")) <> ""';
+                $conditions[] = 'TRIM(COALESCE(s.category, "")) <> ""';
             }
         } else {
-            $sql .= ' WHERE s.category = ?';
-            $types = 's';
+            $conditions[] = 's.category = ?';
+            $types .= 's';
             $params[] = $selectedCategory;
         }
+    }
+
+    if ($searchQuery !== '') {
+        $conditions[] = '(s.title LIKE ? OR s.category LIKE ? OR u.name LIKE ?)';
+        $searchLike = '%' . $searchQuery . '%';
+        $types .= 'sss';
+        $params[] = $searchLike;
+        $params[] = $searchLike;
+        $params[] = $searchLike;
+    }
+
+    if ($priceFilter !== '') {
+        if ($priceFilter === '0-10000') {
+            $conditions[] = 's.price BETWEEN ? AND ?';
+            $types .= 'dd';
+            $params[] = 0;
+            $params[] = 10000;
+        } elseif ($priceFilter === '10000-30000') {
+            $conditions[] = 's.price BETWEEN ? AND ?';
+            $types .= 'dd';
+            $params[] = 10000;
+            $params[] = 30000;
+        } elseif ($priceFilter === '30000-50000') {
+            $conditions[] = 's.price BETWEEN ? AND ?';
+            $types .= 'dd';
+            $params[] = 30000;
+            $params[] = 50000;
+        } elseif ($priceFilter === '50000+') {
+            $conditions[] = 's.price >= ?';
+            $types .= 'd';
+            $params[] = 50000;
+        }
+    }
+
+    if (count($conditions) > 0) {
+        $sql .= ' WHERE ' . implode(' AND ', $conditions);
     }
 
     $sql .= ' ORDER BY s.id DESC';
@@ -135,10 +188,36 @@ try {
       <h1 class="services-page-title">Все категории</h1>
       <div class="category-buttons">
         <?php foreach ($categories as $categoryName): ?>
-          <a href="uslugi.php?category=<?php echo urlencode($categoryName); ?>" class="category-button <?php echo $selectedCategory === $categoryName ? 'active' : ''; ?>"><?php echo htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8'); ?></a>
+          <a href="<?php echo htmlspecialchars(buildServicesFilterUrl($categoryName, $searchQuery, $priceFilter), ENT_QUOTES, 'UTF-8'); ?>" class="category-button <?php echo $selectedCategory === $categoryName ? 'active' : ''; ?>"><?php echo htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8'); ?></a>
         <?php endforeach; ?>
-        <a href="uslugi.php?category=<?php echo urlencode($otherCategoryKey); ?>" class="category-button <?php echo $selectedCategory === $otherCategoryKey ? 'active' : ''; ?>">Прочее</a>
+        <a href="<?php echo htmlspecialchars(buildServicesFilterUrl($otherCategoryKey, $searchQuery, $priceFilter), ENT_QUOTES, 'UTF-8'); ?>" class="category-button <?php echo $selectedCategory === $otherCategoryKey ? 'active' : ''; ?>">Прочее</a>
       </div>
+    </div>
+  </section>
+
+
+  <section class="filters-section">
+    <div class="container">
+      <form class="row g-3 align-items-center" method="get">
+        <?php if ($selectedCategory !== ''): ?>
+          <input type="hidden" name="category" value="<?php echo htmlspecialchars($selectedCategory, ENT_QUOTES, 'UTF-8'); ?>">
+        <?php endif; ?>
+        <div class="col-lg-6 col-md-6">
+          <input type="text" name="q" class="form-control artists-search-input" placeholder="Поиск услуг" value="<?php echo htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8'); ?>">
+        </div>
+        <div class="col-lg-4 col-md-4">
+          <select name="price" class="form-select filter-dropdown">
+            <option value="" <?php echo $priceFilter === '' ? 'selected' : ''; ?>>Цена, ₽</option>
+            <option value="0-10000" <?php echo $priceFilter === '0-10000' ? 'selected' : ''; ?>>0 - 10 000</option>
+            <option value="10000-30000" <?php echo $priceFilter === '10000-30000' ? 'selected' : ''; ?>>10 000 - 30 000</option>
+            <option value="30000-50000" <?php echo $priceFilter === '30000-50000' ? 'selected' : ''; ?>>30 000 - 50 000</option>
+            <option value="50000+" <?php echo $priceFilter === '50000+' ? 'selected' : ''; ?>>50 000+</option>
+          </select>
+        </div>
+        <div class="col-lg-2 col-md-2">
+          <button type="submit" class="btn btn-load-more w-100">Найти</button>
+        </div>
+      </form>
     </div>
   </section>
 
