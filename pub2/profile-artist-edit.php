@@ -1210,7 +1210,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
                   <p class="service-category"><?php echo htmlspecialchars((string) $service['category'], ENT_QUOTES, 'UTF-8'); ?></p>
                   <div class="service-bottom">
                     <p class="service-price">от <?php echo (int) $service['price']; ?>р</p>
-                    <p class="service-time"><?php echo htmlspecialchars(date('d.m.Y', strtotime((string) $service['created_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="service-time"><?php echo htmlspecialchars(date('H:i', strtotime((string) $service['created_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>
               </div>

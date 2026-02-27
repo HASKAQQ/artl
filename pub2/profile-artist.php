@@ -27,6 +27,32 @@ $portfolioWorks = [];
 $services = [];
 $reviews = [];
 
+
+
+function formatTimeAgo(string $datetime): string
+{
+    if ($datetime === '') {
+        return '';
+    }
+
+    $timestamp = strtotime($datetime);
+    if ($timestamp === false) {
+        return '';
+    }
+
+    $diff = time() - $timestamp;
+    if ($diff < 60) {
+        return 'только что';
+    }
+    if ($diff < 3600) {
+        return floor($diff / 60) . ' мин назад';
+    }
+    if ($diff < 86400) {
+        return floor($diff / 3600) . ' ч назад';
+    }
+
+    return floor($diff / 86400) . ' дн назад';
+}
 try {
     $conn = new mysqli('MySQL-8.0', 'root', '');
     if ($conn->connect_error) {
@@ -102,7 +128,7 @@ try {
         $portfolioWorks[] = $work;
     }
 
-    $servicesStmt = prepareOrFail($conn, 'SELECT id, title, category, price, image_path FROM artist_services WHERE user_phone = ? ORDER BY id DESC');
+    $servicesStmt = prepareOrFail($conn, 'SELECT id, title, category, price, image_path, created_at FROM artist_services WHERE user_phone = ? ORDER BY id DESC');
     $servicesStmt->bind_param('s', $userPhone);
     $servicesStmt->execute();
     $servicesRes = $servicesStmt->get_result();
@@ -218,6 +244,7 @@ $avatarPath = $user && !empty($user['avatar_path']) ? (string) $user['avatar_pat
                       <p class="service-category"><?php echo htmlspecialchars((string) ($service['category'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></p>
                       <div class="service-bottom">
                         <p class="service-price">от <?php echo htmlspecialchars((string) ($service['price'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?>р</p>
+                        <p class="service-time"><?php echo htmlspecialchars(formatTimeAgo((string) ($service['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
                       </div>
                     </div>
                   </div>
