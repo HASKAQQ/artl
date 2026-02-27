@@ -1022,8 +1022,18 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
             </div>
           </div>
           <div class="profile-contacts">
-            <button type="button" class="contact-link-btn<?php echo trim((string) $socialLinks['vk']) === '' ? ' is-empty' : ''; ?>" onclick="openSocialLinkModal('vk', <?php echo json_encode($socialLinks['vk'], $jsonFlags); ?>)"><img src="src/image/icons/vk-icon.svg" alt="VK"></button>
-            <button type="button" class="contact-link-btn<?php echo trim((string) $socialLinks['email']) === '' ? ' is-empty' : ''; ?>" onclick="openSocialLinkModal('email', <?php echo json_encode($socialLinks['email'], $jsonFlags); ?>)"><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email" class="contact-link-email-icon"></button>
+            <button
+              type="button"
+              class="contact-link-btn js-social-link-btn<?php echo trim((string) $socialLinks['vk']) === '' ? ' is-empty' : ''; ?>"
+              data-social-type="vk"
+              data-social-link="<?php echo htmlspecialchars((string) $socialLinks['vk'], ENT_QUOTES, 'UTF-8'); ?>"
+            ><img src="src/image/icons/vk-icon.svg" alt="VK"></button>
+            <button
+              type="button"
+              class="contact-link-btn js-social-link-btn<?php echo trim((string) $socialLinks['email']) === '' ? ' is-empty' : ''; ?>"
+              data-social-type="email"
+              data-social-link="<?php echo htmlspecialchars((string) $socialLinks['email'], ENT_QUOTES, 'UTF-8'); ?>"
+            ><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email" class="contact-link-email-icon"></button>
           </div>
           <div class="profile-balance">
             <span class="balance-label">Баланс, руб</span>
@@ -1465,6 +1475,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
     const socialLinkTitleEl = document.getElementById('socialLinkTitle');
     const socialTypeEl = document.getElementById('socialType');
     const socialLinkInputEl = document.getElementById('socialLinkInput');
+    const socialLinkButtonsEls = document.querySelectorAll('.js-social-link-btn');
     const serviceIdEl = document.getElementById('serviceId');
     const serviceTitleEl = document.getElementById('serviceTitle');
     const serviceCategoryEl = document.getElementById('serviceCategory');
@@ -1674,6 +1685,16 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
       if (socialLinkModalEl) socialLinkModalEl.style.display = 'none';
       const socialLinkModalDropdown = document.getElementById('socialLinkModalDropdown');
       if (socialLinkModalDropdown) socialLinkModalDropdown.style.display = 'none';
+    }
+
+    if (socialLinkButtonsEls && socialLinkButtonsEls.length > 0) {
+      socialLinkButtonsEls.forEach((buttonEl) => {
+        buttonEl.addEventListener('click', () => {
+          const type = String(buttonEl.getAttribute('data-social-type') || '');
+          const link = String(buttonEl.getAttribute('data-social-link') || '');
+          openSocialLinkModal(type, link);
+        });
+      });
     }
 
     function openBalanceUnavailableModal() {
