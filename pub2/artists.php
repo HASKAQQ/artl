@@ -25,6 +25,23 @@ function hasColumn(mysqli $conn, string $table, string $column): bool
     return $result !== false && $result->num_rows > 0;
 }
 
+
+function getArtistCardColor(int $artistId): string
+{
+    $palette = [
+        '#f5c2c7',
+        '#ffd6a5',
+        '#fdffb6',
+        '#caffbf',
+        '#9bf6ff',
+        '#a0c4ff',
+        '#bdb2ff',
+        '#ffc6ff',
+    ];
+
+    return $palette[$artistId % count($palette)];
+}
+
 try {
     $conn = new mysqli('MySQL-8.0', 'root', '');
     if ($conn->connect_error) {
@@ -92,6 +109,7 @@ try {
             'name' => (string) ($artist['name'] ?: 'Художник'),
             'avatar_path' => (string) ($artist['avatar_path'] ?? ''),
             'specialty' => $specialty,
+            'card_color' => getArtistCardColor($artistId),
         ];
     }
 } catch (Throwable $e) {
@@ -147,16 +165,23 @@ try {
             <?php if ($errorMessage !== ''): ?>
                 <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
-            <div class="artist-stripes-list">
+            <div class="row g-4">
                 <?php if (count($artists) > 0): ?>
-                    <?php foreach ($artists as $index => $artist): ?>
-                        <a href="profile-artist.php?user_id=<?php echo (int) $artist['id']; ?>" class="artist-stripe text-decoration-none text-reset d-flex align-items-center <?php echo $index % 2 === 0 ? 'artist-stripe-light' : 'artist-stripe-dark'; ?>">
-                            <img src="<?php echo htmlspecialchars($artist['avatar_path'] !== '' ? $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?>" class="artist-avatar">
-                            <div class="artist-details">
-                                <h3 class="artist-name"><?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?></h3>
-                                <p class="artist-specialty"><?php echo htmlspecialchars($artist['specialty'], ENT_QUOTES, 'UTF-8'); ?></p>
-                            </div>
-                        </a>
+                    <?php foreach ($artists as $artist): ?>
+                        <div class="col-lg-4 col-md-6">
+                            <a href="profile-artist.php?user_id=<?php echo (int) $artist['id']; ?>" class="text-decoration-none text-reset d-block">
+                                <div class="artist-card">
+                                    <div class="artist-card-bg" style="background-color: <?php echo htmlspecialchars($artist['card_color'], ENT_QUOTES, 'UTF-8'); ?>;"></div>
+                                    <div class="artist-card-overlay">
+                                        <img src="<?php echo htmlspecialchars($artist['avatar_path'] !== '' ? $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?>" class="artist-avatar">
+                                        <div class="artist-details">
+                                            <h3 class="artist-name"><?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                                            <p class="artist-specialty"><?php echo htmlspecialchars($artist['specialty'], ENT_QUOTES, 'UTF-8'); ?></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <p>Художники пока не найдены.</p>
