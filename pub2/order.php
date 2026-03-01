@@ -1,10 +1,12 @@
 <?php
+session_start();
+
 $errorMessage = '';
+$saveMessage = '';
 $serviceId = (int) ($_GET['service_id'] ?? 0);
+$userPhone = (string) ($_SESSION['user_phone'] ?? '');
 $service = null;
 $artist = null;
-$artistTags = [];
-$reviews = [];
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -16,41 +18,65 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
     return $stmt;
 }
 
-function hasColumn(mysqli $conn, string $table, string $column): bool
+function getDbConnection(): mysqli
 {
-    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
-    $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
-    if ($safeTable === '' || $safeColumn === '') {
-        return false;
+    $conn = new mysqli('MySQL-8.0', 'root', '');
+    if ($conn->connect_error) {
+        throw new RuntimeException('Не удалось подключиться к MySQL: ' . $conn->connect_error);
     }
 
-    $result = $conn->query("SHOW COLUMNS FROM {$safeTable} LIKE '{$safeColumn}'");
-    return $result !== false && $result->num_rows > 0;
-}
+    $conn->set_charset('utf8mb4');
+    $conn->query('CREATE DATABASE IF NOT EXISTS artlance CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
 
-function formatTimeAgo(string $datetime): string
-{
-    if ($datetime === '') {
-        return '';
+    if (!$conn->select_db('artlance')) {
+        throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
     }
 
-    $timestamp = strtotime($datetime);
-    if ($timestamp === false) {
-        return '';
-    }
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS users (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            phone VARCHAR(20) NOT NULL UNIQUE,
+            name VARCHAR(255) DEFAULT NULL,
+            role VARCHAR(30) NOT NULL DEFAULT "Художник",
+            avatar_path VARCHAR(255) DEFAULT NULL,
+            social_email VARCHAR(255) DEFAULT NULL,
+            registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
 
-    $diff = time() - $timestamp;
-    if ($diff < 60) {
-        return 'только что';
-    }
-    if ($diff < 3600) {
-        return floor($diff / 60) . ' мин назад';
-    }
-    if ($diff < 86400) {
-        return floor($diff / 3600) . ' ч назад';
-    }
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_services (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_phone VARCHAR(20) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            category VARCHAR(255) NOT NULL,
+            price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            description TEXT DEFAULT NULL,
+            image_path VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
 
-    return floor($diff / 86400) . ' дн назад';
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            artist_phone VARCHAR(20) NOT NULL,
+            client_phone VARCHAR(20) NOT NULL,
+            service_title VARCHAR(255) NOT NULL,
+            service_category VARCHAR(255) NOT NULL,
+            service_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            service_image_path VARCHAR(255) DEFAULT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT "Оплачен",
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_artist_phone (artist_phone),
+            INDEX idx_client_phone (client_phone),
+            INDEX idx_service_id (service_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    return $conn;
 }
 
 try {
@@ -58,32 +84,58 @@ try {
         throw new RuntimeException('Услуга не найдена.');
     }
 
-    $conn = new mysqli('MySQL-8.0', 'root', '');
-    if ($conn->connect_error) {
-        throw new RuntimeException('Не удалось подключиться к MySQL: ' . $conn->connect_error);
+    $conn = getDbConnection();
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['buy_service'])) {
+        if ($userPhone === '') {
+            header('Location: login.php');
+            exit;
+        }
+
+        $serviceQuery = prepareOrFail($conn, 'SELECT id, user_phone, title, category, price, image_path FROM artist_services WHERE id = ? LIMIT 1');
+        $serviceQuery->bind_param('i', $serviceId);
+        $serviceQuery->execute();
+        $serviceRow = $serviceQuery->get_result()->fetch_assoc();
+
+        if (!$serviceRow) {
+            throw new RuntimeException('Услуга не найдена.');
+        }
+
+        $artistPhone = (string) ($serviceRow['user_phone'] ?? '');
+        if ($artistPhone === $userPhone) {
+            throw new RuntimeException('Нельзя оформить заказ на свою услугу.');
+        }
+
+        $orderInsert = prepareOrFail(
+            $conn,
+            'INSERT INTO artist_orders (service_id, artist_phone, client_phone, service_title, service_category, service_price, service_image_path, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, "Оплачен")'
+        );
+
+        $title = (string) ($serviceRow['title'] ?? '');
+        $category = (string) ($serviceRow['category'] ?? '');
+        $price = (float) ($serviceRow['price'] ?? 0);
+        $imagePath = (string) ($serviceRow['image_path'] ?? '');
+        $serviceIdForInsert = (int) ($serviceRow['id'] ?? 0);
+
+        $orderInsert->bind_param('issssds', $serviceIdForInsert, $artistPhone, $userPhone, $title, $category, $price, $imagePath);
+        $orderInsert->execute();
+
+        $saveMessage = 'Заказ успешно оформлен.';
     }
 
-    $conn->set_charset('utf8mb4');
-    if (!$conn->select_db('artlance')) {
-        throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
-    }
-
-    $userColumns = ['u.id AS artist_user_id', 'u.name', 'u.avatar_path', 'u.phone'];
-    $userColumns[] = hasColumn($conn, 'users', 'about') ? 'u.about' : 'NULL AS about';
-    $userColumns[] = hasColumn($conn, 'users', 'social_vk') ? 'u.social_vk' : 'NULL AS social_vk';
-    $userColumns[] = hasColumn($conn, 'users', 'social_email') ? 'u.social_email' : 'NULL AS social_email';
-
-    $serviceStmt = prepareOrFail(
+    $stmt = prepareOrFail(
         $conn,
-        'SELECT s.id, s.title, s.category, s.price, s.description, s.image_path, s.created_at, s.user_phone, ' . implode(', ', $userColumns) . '
+        'SELECT s.id, s.title, s.category, s.price, s.description, s.image_path, s.created_at, s.user_phone,
+                u.id AS artist_user_id, u.name AS artist_name, u.avatar_path AS artist_avatar, u.social_email
          FROM artist_services s
          LEFT JOIN users u ON u.phone = s.user_phone
          WHERE s.id = ?
          LIMIT 1'
     );
-    $serviceStmt->bind_param('i', $serviceId);
-    $serviceStmt->execute();
-    $service = $serviceStmt->get_result()->fetch_assoc();
+    $stmt->bind_param('i', $serviceId);
+    $stmt->execute();
+    $service = $stmt->get_result()->fetch_assoc();
 
     if (!$service) {
         throw new RuntimeException('Услуга не найдена.');
@@ -91,52 +143,10 @@ try {
 
     $artist = [
         'id' => (int) ($service['artist_user_id'] ?? 0),
-        'user_id' => (int) ($service['artist_user_id'] ?? 0),
-        'name' => trim((string) ($service['name'] ?? 'Художник')),
-        'avatar_path' => trim((string) ($service['avatar_path'] ?? '')),
-        'about' => trim((string) ($service['about'] ?? '')),
-        'phone' => trim((string) ($service['phone'] ?? '')),
-        'social_vk' => trim((string) ($service['social_vk'] ?? '')),
-        'social_email' => trim((string) ($service['social_email'] ?? '')),
+        'name' => (string) (($service['artist_name'] ?? '') ?: 'Художник'),
+        'avatar' => (string) ($service['artist_avatar'] ?? ''),
+        'email' => (string) ($service['social_email'] ?? ''),
     ];
-    $artistUserId = (int) ($service['artist_user_id'] ?? 0);
-    $artistPhone = trim((string) ($service['user_phone'] ?? ''));
-
-    if ($artistUserId > 0 && hasColumn($conn, 'profile_categories', 'profile_user_id')) {
-        $tagsStmt = prepareOrFail(
-            $conn,
-            'SELECT DISTINCT TRIM(COALESCE(c.categories, pc.custom_category)) AS tag_name
-             FROM profile_categories pc
-             LEFT JOIN categories c ON c.id = pc.category_id
-             WHERE pc.profile_user_id = ? OR pc.user_phone = ?'
-        );
-        $tagsStmt->bind_param('is', $artistUserId, $artistPhone);
-        $tagsStmt->execute();
-        $tagsRes = $tagsStmt->get_result();
-        while ($tagRow = $tagsRes->fetch_assoc()) {
-            $tag = trim((string) ($tagRow['tag_name'] ?? ''));
-            if ($tag !== '') {
-                $artistTags[] = $tag;
-            }
-        }
-    }
-
-    if (count($artistTags) === 0 && trim((string) ($service['category'] ?? '')) !== '') {
-        $artistTags[] = trim((string) $service['category']);
-    }
-
-    if ($artistUserId > 0 && hasColumn($conn, 'reviews', 'user_id') && hasColumn($conn, 'reviews', 'reviews')) {
-        $reviewsStmt = prepareOrFail($conn, 'SELECT id, reviews FROM reviews WHERE user_id = ? ORDER BY id DESC LIMIT 6');
-        $reviewsStmt->bind_param('i', $artistUserId);
-        $reviewsStmt->execute();
-        $reviewsRes = $reviewsStmt->get_result();
-        while ($review = $reviewsRes->fetch_assoc()) {
-            $reviews[] = [
-                'name' => 'Пользователь',
-                'text' => trim((string) ($review['reviews'] ?? '')),
-            ];
-        }
-    }
 } catch (Throwable $e) {
     $errorMessage = $e->getMessage();
 }
@@ -156,8 +166,70 @@ try {
 
   <?php include 'header.php'; ?>
 
-  <!-- Здесь блок оформления заказа -->
   <section class="order-page-section">
+    <div class="container">
+      <?php if ($errorMessage !== ''): ?>
+        <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+      <?php if ($saveMessage !== ''): ?>
+        <div class="alert alert-success mb-4"><?php echo htmlspecialchars($saveMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
+      <?php if ($errorMessage === '' && is_array($service)): ?>
+      <div class="order-page-card">
+        <div class="order-page-header">
+          <h1 class="order-page-title">Оформление заказа</h1>
+          <span class="order-page-published">Опубликовано: <?php echo htmlspecialchars((string) ($service['created_at'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
+        </div>
+
+        <div class="row g-0">
+          <div class="col-lg-5">
+            <div class="order-page-image" style="background: url('<?php echo htmlspecialchars(trim((string) ($service['image_path'] ?? '')) !== '' ? (string) $service['image_path'] : 'src/image/Rectangle 55.png', ENT_QUOTES, 'UTF-8'); ?>') center/cover no-repeat;"></div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="order-page-artist">
+              <div class="order-page-avatar-wrapper">
+                <img src="<?php echo htmlspecialchars(trim((string) ($artist['avatar'] ?? '')) !== '' ? (string) $artist['avatar'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="order-page-avatar">
+              </div>
+              <h2 class="order-page-artist-name"><?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></h2>
+              <p class="order-page-artist-desc"><?php echo htmlspecialchars(trim((string) ($service['description'] ?? '')) !== '' ? (string) $service['description'] : 'Описание услуги...', ENT_QUOTES, 'UTF-8'); ?></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="order-page-details">
+          <div class="order-page-detail-item">
+            <h3 class="order-page-detail-label">Название услуги</h3>
+            <p class="order-page-detail-value"><?php echo htmlspecialchars((string) ($service['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
+          </div>
+          <div class="order-page-detail-item">
+            <h3 class="order-page-detail-label">Категория</h3>
+            <p class="order-page-detail-value"><?php echo htmlspecialchars((string) ($service['category'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
+          </div>
+
+          <h3 class="order-page-detail-label">Способ оплаты</h3>
+          <div class="order-page-payment">
+            <span class="order-page-payment-method">Банковская карта</span>
+            <span class="order-page-payment-price">от <?php echo number_format((float) ($service['price'] ?? 0), 0, '.', ' '); ?>р</span>
+          </div>
+
+          <div class="order-page-buy-wrapper">
+            <form method="post">
+              <button class="order-page-buy-btn" type="submit" name="buy_service">Купить</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <?php include 'footer.php'; ?>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
     <div class="container">
       <?php if ($errorMessage !== ''): ?>
         <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></div>

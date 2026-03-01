@@ -25,6 +25,32 @@ function redirectProfileArtistWithFlash(string $message): void
     exit;
 }
 
+
+function formatTimeAgo(string $datetime): string
+{
+    if ($datetime === '') {
+        return '';
+    }
+
+    $timestamp = strtotime($datetime);
+    if ($timestamp === false) {
+        return '';
+    }
+
+    $diff = time() - $timestamp;
+    if ($diff < 60) {
+        return 'только что';
+    }
+    if ($diff < 3600) {
+        return floor($diff / 60) . ' мин назад';
+    }
+    if ($diff < 86400) {
+        return floor($diff / 3600) . ' ч назад';
+    }
+
+    return floor($diff / 86400) . ' дн назад';
+}
+
 function parsePositiveIntList(string $raw): array
 {
     if ($raw === '') {
@@ -103,6 +129,27 @@ function ensureCategoryTables(mysqli $conn): void
         'created_at' => 'ALTER TABLE categories ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ];
 
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            artist_phone VARCHAR(20) NOT NULL,
+            client_phone VARCHAR(20) NOT NULL,
+            service_title VARCHAR(255) NOT NULL,
+            service_category VARCHAR(255) NOT NULL,
+            service_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            service_image_path VARCHAR(255) DEFAULT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT "Оплачен",
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_artist_phone (artist_phone),
+            INDEX idx_client_phone (client_phone),
+            INDEX idx_service_id (service_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+$artistOrders = [];
     foreach ($categoryColumnsToAdd as $columnName => $sql) {
         if (!isset($categoryColumns[$columnName])) {
             $conn->query($sql);
@@ -569,6 +616,23 @@ try {
                         $targetPath = $uploadDir . '/' . $fileName;
                         if (move_uploaded_file($tmpName, $targetPath)) {
                             $path = 'uploads/portfolio/' . $fileName;
+
+    $ordersStmt = prepareOrFail(
+        $conn,
+        'SELECT o.id, o.service_title, o.service_category, o.service_price, o.service_image_path, o.status, o.created_at,
+                u.name AS client_name
+         FROM artist_orders o
+         LEFT JOIN users u ON u.phone = o.client_phone
+         WHERE o.artist_phone = ?
+         ORDER BY o.id DESC'
+    );
+    $ordersStmt->bind_param('s', $userPhone);
+    $ordersStmt->execute();
+    $ordersRes = $ordersStmt->get_result();
+    while ($orderRow = $ordersRes->fetch_assoc()) {
+        $artistOrders[] = $orderRow;
+    }
+
                             $insImg = prepareOrFail($conn, 'INSERT INTO portfolio_images (work_id, image_path, sort_order) VALUES (?, ?, ?)');
                             $insImg->bind_param('isi', $workId, $path, $sortOrder);
                             $insImg->execute();
@@ -687,77 +751,26 @@ try {
         }
     }
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
-        $name = trim((string) ($_POST['profile_name'] ?? ''));
-        $about = trim((string) ($_POST['profile_description'] ?? ''));
-        if (mb_strlen($about, 'UTF-8') > 500) {
-            $errorMessage = 'Поле «О себе» должно быть не длиннее 500 символов.';
-        }
-        $selectedCategoryIds = parsePositiveIntList((string) ($_POST['selected_category_ids'] ?? ''));
-        $customCategories = parseCustomCategoryList((string) ($_POST['custom_categories'] ?? ''));
-        $customCategoryIds = [];
-
-        if ($name === '') {
-            $errorMessage = 'Вы обязаны ввести имя перед сохранением профиля.';
-        } elseif ($errorMessage === '') {
-            $avatarForDb = $avatarPath;
-
-            if (isset($_FILES['avatar_file']) && $_FILES['avatar_file']['error'] === UPLOAD_ERR_OK) {
-                $tmpName = $_FILES['avatar_file']['tmp_name'];
-                $mime = mime_content_type($tmpName);
-                $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
-
-                if (isset($allowed[$mime])) {
-                    $uploadDir = __DIR__ . '/uploads/avatars';
-                    if (!is_dir($uploadDir)) {
-                        mkdir($uploadDir, 0777, true);
-                    }
-
-                    $fileName = 'avatar_' . preg_replace('/\D+/', '', $userPhone) . '_' . time() . '.' . $allowed[$mime];
-                    $targetPath = $uploadDir . '/' . $fileName;
-
-                    if (move_uploaded_file($tmpName, $targetPath)) {
-                        $avatarForDb = 'uploads/avatars/' . $fileName;
-                    }
-                } else {
-                    $errorMessage = 'Можно загрузить только JPG, PNG или WEBP.';
-                }
-            }
-
-            if ($errorMessage === '') {
-                $updateProfile = prepareOrFail(
-                    $conn,
-                    'UPDATE users SET name = ?, role = "Художник", avatar_path = ?, about = ? WHERE phone = ?'
-                );
-                $updateProfile->bind_param('ssss', $name, $avatarForDb, $about, $userPhone);
-                $updateProfile->execute();
-
-                if ($updateProfile->affected_rows === 0) {
-                    $insertProfile = prepareOrFail(
-                        $conn,
-                        'INSERT INTO users (phone, name, role, avatar_path, about) VALUES (?, ?, "Художник", ?, ?)'
-                    );
-                    $insertProfile->bind_param('ssss', $userPhone, $name, $avatarForDb, $about);
-                    $insertProfile->execute();
-                }
-
-                if ($userId <= 0) {
-                    $userIdStmt = prepareOrFail($conn, 'SELECT id FROM users WHERE phone = ? LIMIT 1');
-                    $userIdStmt->bind_param('s', $userPhone);
-                    $userIdStmt->execute();
-                    $userIdRow = $userIdStmt->get_result()->fetch_assoc();
-                    $userId = (int) ($userIdRow['id'] ?? 0);
-                }
-
-                if (count($customCategories) > 0) {
-                    $findCustomInCategories = prepareOrFail($conn, 'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) LIMIT 1');
-                    $insertCustomInCategories = prepareOrFail($conn, 'INSERT INTO categories (categories, is_default, created_by_phone) VALUES (?, 0, ?)');
-                    foreach ($customCategories as $customCategory) {
-                        $findCustomInCategories->bind_param('s', $customCategory);
-                        $findCustomInCategories->execute();
-                        $customCategoryRow = $findCustomInCategories->get_result()->fetch_assoc();
-                        if ($customCategoryRow && isset($customCategoryRow['id'])) {
-                            $customCategoryIds[] = (int) $customCategoryRow['id'];
+            <?php if (count($artistOrders) > 0): ?>
+              <?php foreach ($artistOrders as $order): ?>
+                <div class="col-12 col-lg-6">
+                  <div class="order-card bg-white">
+                    <img src="<?php echo htmlspecialchars(trim((string) ($order['service_image_path'] ?? '')) !== '' ? (string) $order['service_image_path'] : 'src/image/Rectangle 55.png', ENT_QUOTES, 'UTF-8'); ?>" alt="Service" class="order-image">
+                    <div class="order-details">
+                      <h3 class="order-title"><?php echo htmlspecialchars((string) ($order['service_title'] ?? 'Услуга'), ENT_QUOTES, 'UTF-8'); ?></h3>
+                      <p class="order-category"><?php echo htmlspecialchars((string) ($order['service_category'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
+                      <p class="order-category">Заказчик: <?php echo htmlspecialchars((string) (($order['client_name'] ?? '') ?: 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></p>
+                      <select class="order-status" disabled>
+                        <option class="orders-status-option" selected><?php echo htmlspecialchars((string) ($order['status'] ?? 'Оплачен'), ENT_QUOTES, 'UTF-8'); ?></option>
+                      </select>
+                      <p class="order-price">от <?php echo number_format((float) ($order['service_price'] ?? 0), 0, '.', ' '); ?>р</p>
+                      <p class="order-time"><?php echo htmlspecialchars(formatTimeAgo((string) ($order['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
+                    </div>
+                  </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p>Пока заказов нет.</p>
+            <?php endif; ?>
                         } else {
                             $insertCustomInCategories->bind_param('ss', $customCategory, $userPhone);
                             $insertCustomInCategories->execute();
