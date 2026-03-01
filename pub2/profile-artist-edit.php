@@ -973,7 +973,7 @@ try {
                 COALESCE(NULLIF(TRIM(u.name), ""), ao.buyer_phone) AS buyer_name, ao.buyer_phone, u.id AS buyer_user_id
          FROM artist_orders ao
          LEFT JOIN users u ON u.phone = ao.buyer_phone
-         WHERE ao.artist_phone = ?
+         WHERE ao.artist_phone = ? AND ao.buyer_phone <> ao.artist_phone
          ORDER BY ao.created_at DESC, ao.id DESC'
     );
     $ordersStmt->bind_param('s', $userPhone);
@@ -1187,18 +1187,20 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
                         <p class="order-category"><a href="profile-artist.php?user_id=<?php echo $buyerUserId; ?>" class="text-decoration-none">Открыть профиль заказчика</a></p>
                       <?php endif; ?>
 
-                      <form method="post" class="m-0">
-                        <input type="hidden" name="order_action" value="update_order_status">
-                        <input type="hidden" name="order_id" value="<?php echo (int) ($order['id'] ?? 0); ?>">
-                        <select class="order-status" name="order_status" onchange="this.form.submit()">
-                          <?php $currentStatus = (string) ($order['status'] ?? 'paid'); ?>
-                          <option class="orders-status-option" value="paid" <?php echo $currentStatus === 'paid' ? 'selected' : ''; ?>>Оплачен</option>
-                          <option class="orders-status-option" value="in-progress" <?php echo $currentStatus === 'in-progress' ? 'selected' : ''; ?>>В работе</option>
-                          <option class="orders-status-option" value="completed" <?php echo $currentStatus === 'completed' ? 'selected' : ''; ?>>Завершено</option>
-                        </select>
-                      </form>
+                      <div class="d-flex align-items-center justify-content-between gap-2">
+                        <form method="post" class="m-0 flex-grow-1">
+                          <input type="hidden" name="order_action" value="update_order_status">
+                          <input type="hidden" name="order_id" value="<?php echo (int) ($order['id'] ?? 0); ?>">
+                          <select class="order-status" name="order_status" onchange="this.form.submit()">
+                            <?php $currentStatus = (string) ($order['status'] ?? 'paid'); ?>
+                            <option class="orders-status-option" value="paid" <?php echo $currentStatus === 'paid' ? 'selected' : ''; ?>>Оплачен</option>
+                            <option class="orders-status-option" value="in-progress" <?php echo $currentStatus === 'in-progress' ? 'selected' : ''; ?>>В работе</option>
+                            <option class="orders-status-option" value="completed" <?php echo $currentStatus === 'completed' ? 'selected' : ''; ?>>Завершено</option>
+                          </select>
+                        </form>
 
-                      <p class="order-price"><?php echo number_format((float) ($order['service_price'] ?? 0), 0, '.', ' '); ?>р</p>
+                        <p class="order-price mb-0 text-end"><?php echo number_format((float) ($order['service_price'] ?? 0), 0, '.', ' '); ?>р</p>
+                      </div>
                       <p class="order-time"><?php echo htmlspecialchars(formatOrderTimeAgo((string) ($order['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                   </div>
@@ -1270,7 +1272,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
                   <h3 class="service-title"><?php echo htmlspecialchars((string) $service['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
                   <p class="service-category"><?php echo htmlspecialchars((string) $service['category'], ENT_QUOTES, 'UTF-8'); ?></p>
                   <div class="service-bottom">
-                    <p class="service-price">от <?php echo (int) $service['price']; ?>р</p>
+                    <p class="service-price"><?php echo (int) $service['price']; ?>р</p>
                     <p class="service-time"><?php echo htmlspecialchars(date('H:i', strtotime((string) $service['created_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>

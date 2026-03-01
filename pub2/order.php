@@ -11,6 +11,7 @@ $artistTags = [];
 $reviews = [];
 $orderSuccessMessage = '';
 $orderActionError = '';
+$currentUserRole = '';
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -140,7 +141,16 @@ try {
         } elseif ($artistPhone === '') {
             $orderActionError = 'Не удалось определить художника для выбранной услуги.';
         } else {
-            $status = 'paid';
+            $roleStmt = prepareOrFail($conn, 'SELECT role FROM users WHERE phone = ? LIMIT 1');
+            $roleStmt->bind_param('s', $buyerPhone);
+            $roleStmt->execute();
+            $roleRow = $roleStmt->get_result()->fetch_assoc();
+            $currentUserRole = trim((string) ($roleRow['role'] ?? ''));
+
+            if ($currentUserRole === 'Художник') {
+                $orderActionError = 'Художник не может оформлять заказы. Переключитесь на роль «Заказчик».';
+            } else {
+                $status = 'paid';
             $serviceTitle = trim((string) ($service['title'] ?? 'Услуга художника'));
             $serviceCategory = trim((string) ($service['category'] ?? ''));
             $servicePrice = (float) ($service['price'] ?? 0);
@@ -165,6 +175,7 @@ try {
             );
             $insertOrder->execute();
             $orderSuccessMessage = 'Заказ оформлен. Художник увидит его в разделе «Заказы».';
+            }
         }
     }
 

@@ -263,7 +263,7 @@ $vkHref = $userVk !== '' ? $userVk : '';
                       <h3 class="service-title"><?php echo htmlspecialchars((string) ($service['title'] ?? 'Услуга'), ENT_QUOTES, 'UTF-8'); ?></h3>
                       <p class="service-category"><?php echo htmlspecialchars((string) ($service['category'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></p>
                       <div class="service-bottom">
-                        <p class="service-price">от <?php echo htmlspecialchars((string) ($service['price'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?>р</p>
+                        <p class="service-price"><?php echo htmlspecialchars((string) ($service['price'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?>р</p>
                         <p class="service-time"><?php echo htmlspecialchars(formatTimeAgo((string) ($service['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
                       </div>
                     </div>
