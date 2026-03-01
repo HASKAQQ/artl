@@ -16,6 +16,32 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
     return $stmt;
 }
 
+
+function formatTimeAgo(string $datetime): string
+{
+    if ($datetime === '') {
+        return '';
+    }
+
+    $timestamp = strtotime($datetime);
+    if ($timestamp === false) {
+        return '';
+    }
+
+    $diff = time() - $timestamp;
+    if ($diff < 60) {
+        return 'только что';
+    }
+    if ($diff < 3600) {
+        return floor($diff / 60) . ' мин назад';
+    }
+    if ($diff < 86400) {
+        return floor($diff / 3600) . ' ч назад';
+    }
+
+    return floor($diff / 86400) . ' дн назад';
+}
+
 function getDbConnection(): mysqli
 {
     $conn = new mysqli('MySQL-8.0', 'root', '');
@@ -40,6 +66,25 @@ function getDbConnection(): mysqli
             avatar_path VARCHAR(255) DEFAULT NULL,
             registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            artist_phone VARCHAR(20) NOT NULL,
+            client_phone VARCHAR(20) NOT NULL,
+            service_title VARCHAR(255) NOT NULL,
+            service_category VARCHAR(255) NOT NULL,
+            service_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            service_image_path VARCHAR(255) DEFAULT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT "Оплачен",
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_artist_phone (artist_phone),
+            INDEX idx_client_phone (client_phone)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
@@ -78,6 +123,7 @@ $whatsappLink = '';
 $emailLink = '';
 $saveMessage = '';
 $errorMessage = '';
+$clientOrders = [];
 
 try {
     $conn = getDbConnection();
@@ -172,6 +218,25 @@ try {
             $telegramLink = (string) ($existing['social_telegram'] ?? '');
             $whatsappLink = (string) ($existing['social_whatsapp'] ?? '');
             $emailLink = (string) ($existing['social_email'] ?? '');
+        }
+    }
+
+
+    if ($userPhone !== '') {
+        $ordersStmt = prepareOrFail(
+            $conn,
+            'SELECT o.id, o.service_title, o.service_category, o.service_price, o.service_image_path, o.status, o.created_at,
+                    u.name AS artist_name
+             FROM artist_orders o
+             LEFT JOIN users u ON u.phone = o.artist_phone
+             WHERE o.client_phone = ?
+             ORDER BY o.id DESC'
+        );
+        $ordersStmt->bind_param('s', $userPhone);
+        $ordersStmt->execute();
+        $ordersRes = $ordersStmt->get_result();
+        while ($orderRow = $ordersRes->fetch_assoc()) {
+            $clientOrders[] = $orderRow;
         }
     }
 
@@ -279,6 +344,38 @@ $avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF
         </div>
       </div>
       </form>
+
+      <div class="section-collapsible" id="ordersSection">
+        <div class="section-header" onclick="toggleSection('orders')">
+          <h2>Мои заказы</h2>
+          <span class="toggle-arrow" id="ordersArrow">▼</span>
+        </div>
+        <div class="section-content" id="ordersContent">
+          <div class="row g-3">
+            <?php if (count($clientOrders) > 0): ?>
+              <?php foreach ($clientOrders as $order): ?>
+                <div class="col-12 col-lg-6">
+                  <div class="order-card bg-white">
+                    <img src="<?php echo htmlspecialchars(trim((string) ($order['service_image_path'] ?? '')) !== '' ? (string) $order['service_image_path'] : 'src/image/Rectangle 55.png', ENT_QUOTES, 'UTF-8'); ?>" alt="Service" class="order-image">
+                    <div class="order-details">
+                      <h3 class="order-title"><?php echo htmlspecialchars((string) ($order['service_title'] ?? 'Услуга'), ENT_QUOTES, 'UTF-8'); ?></h3>
+                      <p class="order-category"><?php echo htmlspecialchars((string) ($order['service_category'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
+                      <p class="order-category">Художник: <?php echo htmlspecialchars((string) (($order['artist_name'] ?? '') ?: 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></p>
+                      <select class="order-status" disabled>
+                        <option class="orders-status-option" selected><?php echo htmlspecialchars((string) ($order['status'] ?? 'Оплачен'), ENT_QUOTES, 'UTF-8'); ?></option>
+                      </select>
+                      <p class="order-price">от <?php echo number_format((float) ($order['service_price'] ?? 0), 0, '.', ' '); ?>р</p>
+                      <p class="order-time"><?php echo htmlspecialchars(formatTimeAgo((string) ($order['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
+                    </div>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p>У вас пока нет заказов.</p>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
