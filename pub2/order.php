@@ -1,10 +1,16 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 $errorMessage = '';
 $serviceId = (int) ($_GET['service_id'] ?? 0);
 $service = null;
 $artist = null;
 $artistTags = [];
 $reviews = [];
+$orderSuccessMessage = '';
+$orderActionError = '';
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -26,6 +32,29 @@ function hasColumn(mysqli $conn, string $table, string $column): bool
 
     $result = $conn->query("SHOW COLUMNS FROM {$safeTable} LIKE '{$safeColumn}'");
     return $result !== false && $result->num_rows > 0;
+}
+
+function ensureOrdersTable(mysqli $conn): void
+{
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            artist_user_id INT UNSIGNED DEFAULT NULL,
+            artist_phone VARCHAR(20) NOT NULL,
+            buyer_phone VARCHAR(20) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT "paid",
+            service_title VARCHAR(255) NOT NULL,
+            service_category VARCHAR(255) DEFAULT NULL,
+            service_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            service_image_path VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_artist_phone (artist_phone),
+            INDEX idx_buyer_phone (buyer_phone),
+            INDEX idx_service_id (service_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
 }
 
 function formatTimeAgo(string $datetime): string
@@ -68,6 +97,8 @@ try {
         throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
     }
 
+    ensureOrdersTable($conn);
+
     $userColumns = ['u.id AS artist_user_id', 'u.name', 'u.avatar_path', 'u.phone'];
     $userColumns[] = hasColumn($conn, 'users', 'about') ? 'u.about' : 'NULL AS about';
     $userColumns[] = hasColumn($conn, 'users', 'social_vk') ? 'u.social_vk' : 'NULL AS social_vk';
@@ -101,6 +132,41 @@ try {
     ];
     $artistUserId = (int) ($service['artist_user_id'] ?? 0);
     $artistPhone = trim((string) ($service['user_phone'] ?? ''));
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'buy_service') {
+        $buyerPhone = trim((string) ($_SESSION['user_phone'] ?? ''));
+        if ($buyerPhone === '') {
+            $orderActionError = 'Чтобы оформить заказ, сначала войдите в аккаунт.';
+        } elseif ($artistPhone === '') {
+            $orderActionError = 'Не удалось определить художника для выбранной услуги.';
+        } else {
+            $status = 'paid';
+            $serviceTitle = trim((string) ($service['title'] ?? 'Услуга художника'));
+            $serviceCategory = trim((string) ($service['category'] ?? ''));
+            $servicePrice = (float) ($service['price'] ?? 0);
+            $serviceImagePath = trim((string) ($service['image_path'] ?? ''));
+
+            $insertOrder = prepareOrFail(
+                $conn,
+                'INSERT INTO artist_orders (service_id, artist_user_id, artist_phone, buyer_phone, status, service_title, service_category, service_price, service_image_path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $insertOrder->bind_param(
+                'iisssssds',
+                $serviceId,
+                $artistUserId,
+                $artistPhone,
+                $buyerPhone,
+                $status,
+                $serviceTitle,
+                $serviceCategory,
+                $servicePrice,
+                $serviceImagePath
+            );
+            $insertOrder->execute();
+            $orderSuccessMessage = 'Заказ оформлен. Художник увидит его в разделе «Заказы».';
+        }
+    }
 
     if ($artistUserId > 0 && hasColumn($conn, 'profile_categories', 'profile_user_id')) {
         $tagsStmt = prepareOrFail(
@@ -160,6 +226,14 @@ try {
     <div class="container">
       <?php if ($errorMessage !== ''): ?>
         <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
+      <?php if ($orderActionError !== ''): ?>
+        <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($orderActionError, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
+      <?php if ($orderSuccessMessage !== ''): ?>
+        <div class="alert alert-success mb-4"><?php echo htmlspecialchars($orderSuccessMessage, ENT_QUOTES, 'UTF-8'); ?></div>
       <?php endif; ?>
 
       <?php if ($errorMessage === '' && is_array($service)): ?>
@@ -236,7 +310,11 @@ try {
           </div>
 
           <div class="order-page-buy-wrapper">
-            <button class="order-page-buy-btn" type="button">Купить</button>
+            <form method="post" class="m-0">
+              <input type="hidden" name="action" value="buy_service">
+              <input type="hidden" name="service_id" value="<?php echo (int) $serviceId; ?>">
+              <button class="order-page-buy-btn" type="submit">Купить</button>
+            </form>
           </div>
         </div>
       </div>
