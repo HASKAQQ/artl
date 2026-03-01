@@ -1002,8 +1002,8 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
       <?php endif; ?>
       <form method="post" enctype="multipart/form-data" id="profileForm">
       <?php if ($showNameModal): ?>
-        <div id="requiredNameModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;">
-          <div style="max-width:420px;width:100%;background:#fff;border-radius:16px;padding:24px;">
+        <div id="requiredNameModal" class="required_name_modal">
+          <div class="required_name_modal_card">
             <h3 class="mb-3">Заполните профиль</h3>
             <p class="mb-3">Для продолжения обязательно введите имя.</p>
             <input type="text" class="form-control mb-3" id="requiredNameInput" placeholder="Введите имя" maxlength="255">
@@ -1290,8 +1290,8 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
 
   <!-- Модальное окно для портфолио -->
   <div class="modal-overlay" id="portfolioModal" onclick="closeModalOnOverlay(event, 'portfolioModal')">
-    <div class="modal-content" style="position:relative;">
-      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closePortfolioEditor()"></button>
+    <div class="modal-content modal_content_relative">
+      <button type="button" class="btn-close modal_btn_close" onclick="closePortfolioEditor()"></button>
       <h3 class="modal-title">Создание работы</h3>
       <form method="post" enctype="multipart/form-data" id="portfolioForm" class="service-modal-form">
         <input type="hidden" name="portfolio_action" value="save_work">
@@ -1312,9 +1312,10 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
   </div>
 
   <!-- Модальное окно для услуг -->
+  <!-- Здесь пользователь создает/редактирует услугу -->
   <div class="modal-overlay" id="serviceModal" onclick="closeModalOnOverlay(event, 'serviceModal')">
-    <div class="modal-content modal-content-large" style="position:relative;">
-      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeServiceEditor()"></button>
+    <div class="modal-content modal-content-large modal_content_relative">
+      <button type="button" class="btn-close modal_btn_close" onclick="closeServiceEditor()"></button>
       <h3 class="modal-title">Создание услуги</h3>
       <form method="post" enctype="multipart/form-data" id="serviceForm" class="service-modal-form">
         <input type="hidden" name="service_action" id="serviceAction" value="save_service">
@@ -1350,8 +1351,8 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
   <div class="dropdown-edit" id="serviceModalDropdown"></div>
 
   <div class="modal-overlay" id="socialLinkModal" onclick="closeModalOnOverlay(event, 'socialLinkModal')">
-    <div class="modal-content" style="position:relative;">
-      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeSocialLinkModal()"></button>
+    <div class="modal-content modal_content_relative">
+      <button type="button" class="btn-close modal_btn_close" onclick="closeSocialLinkModal()"></button>
       <h3 class="modal-title" id="socialLinkTitle">Контакт</h3>
       <form method="post" class="service-modal-form">
         <input type="hidden" name="social_type" id="socialType" value="vk">
@@ -1366,8 +1367,8 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
   <div class="dropdown-edit" id="socialLinkModalDropdown"></div>
 
   <div class="modal-overlay" id="categoriesModal" onclick="closeModalOnOverlay(event, 'categoriesModal')">
-    <div class="modal-content categories-modal-content" style="position:relative;">
-      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeCategoriesModal()"></button>
+    <div class="modal-content categories-modal-content modal_content_relative">
+      <button type="button" class="btn-close modal_btn_close" onclick="closeCategoriesModal()"></button>
       <h3 class="modal-title">Категории профиля</h3>
       <div class="categories-modal-list" id="categoriesModalDefaultList"></div>
       <div class="categories-custom-input-wrap">
@@ -1383,8 +1384,8 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
   <div class="dropdown-edit" id="categoriesModalDropdown"></div>
 
   <div class="modal-overlay" id="balanceUnavailableModal" onclick="closeModalOnOverlay(event, 'balanceUnavailableModal')">
-    <div class="modal-content" style="position:relative;">
-      <button type="button" class="btn-close" style="position:absolute; top:10px; right:10px;" onclick="closeBalanceUnavailableModal()"></button>
+    <div class="modal-content modal_content_relative">
+      <button type="button" class="btn-close modal_btn_close" onclick="closeBalanceUnavailableModal()"></button>
       <h3 class="modal-title">Внимание</h3>
       <p class="balance-unavailable-message">Функция временно недоступна. Пожалуйста, попробуйте позже.</p>
     </div>
@@ -1400,12 +1401,10 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
     const avatarOverlay = document.querySelector('.avatar-overlay');
 
     if (avatarImageEl && avatarFileInput) {
-      avatarImageEl.style.cursor = 'pointer';
       avatarImageEl.addEventListener('click', () => avatarFileInput.click());
     }
 
     if (avatarOverlay && avatarFileInput) {
-      avatarOverlay.style.cursor = 'pointer';
       avatarOverlay.addEventListener('click', () => avatarFileInput.click());
     }
 
@@ -1798,7 +1797,6 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
     }
 
     if (workImagesEl && workImagesLabelEl) {
-      workImagesLabelEl.style.cursor = 'pointer';
       workImagesLabelEl.addEventListener('click', () => workImagesEl.click());
       workImagesEl.addEventListener('change', function () {
         if (this.files && this.files.length > 0) {

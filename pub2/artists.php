@@ -27,20 +27,20 @@ function hasColumn(mysqli $conn, string $table, string $column): bool
 }
 
 
-function getArtistCardColor(int $artistId): string
+function getArtistCardColorClass(int $artistId): string
 {
-    $palette = [
-        '#f5c2c7',
-        '#ffd6a5',
-        '#fdffb6',
-        '#caffbf',
-        '#9bf6ff',
-        '#a0c4ff',
-        '#bdb2ff',
-        '#ffc6ff',
+    $paletteClasses = [
+        'artist_card_bg_1',
+        'artist_card_bg_2',
+        'artist_card_bg_3',
+        'artist_card_bg_4',
+        'artist_card_bg_5',
+        'artist_card_bg_6',
+        'artist_card_bg_7',
+        'artist_card_bg_8',
     ];
 
-    return $palette[$artistId % count($palette)];
+    return $paletteClasses[$artistId % count($paletteClasses)];
 }
 
 try {
@@ -110,7 +110,7 @@ try {
             'name' => (string) ($artist['name'] ?: 'Художник'),
             'avatar_path' => (string) ($artist['avatar_path'] ?? ''),
             'specialty' => $specialty,
-            'card_color' => getArtistCardColor($artistId),
+            'card_color_class' => getArtistCardColorClass($artistId),
         ];
     }
 } catch (Throwable $e) {
@@ -133,6 +133,7 @@ try {
     <?php include 'header.php'; ?>
 
     <main class="artists-page-main">
+    <!-- Здесь блок поиска художников -->
     <section class="artists-banner">
         <div class="container">
             <div class="row align-items-center">
@@ -150,6 +151,7 @@ try {
         </div>
     </section>
 
+    <!-- Здесь карточки художников -->
     <section class="artists-section">
         <div class="container">
             <?php if ($errorMessage !== ''): ?>
@@ -161,7 +163,7 @@ try {
                         <div class="col-lg-4 col-md-6 artist-card-item <?php echo $index >= $initialVisibleArtists ? 'd-none' : ''; ?>">
                             <a href="profile-artist.php?user_id=<?php echo (int) $artist['id']; ?>" class="text-decoration-none text-reset d-block">
                                 <div class="artist-card">
-                                    <div class="artist-card-bg" style="background-color: <?php echo htmlspecialchars($artist['card_color'], ENT_QUOTES, 'UTF-8'); ?>;"></div>
+                                    <div class="artist-card-bg <?php echo htmlspecialchars((string) $artist['card_color_class'], ENT_QUOTES, 'UTF-8'); ?>"></div>
                                     <div class="artist-card-overlay">
                                         <img src="<?php echo htmlspecialchars($artist['avatar_path'] !== '' ? $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($artist['name'], ENT_QUOTES, 'UTF-8'); ?>" class="artist-avatar">
                                         <div class="artist-details">

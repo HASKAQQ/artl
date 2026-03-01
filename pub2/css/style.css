@@ -2933,3 +2933,93 @@ a.contact-link-btn.is-empty {
     height: 60px;
   }
 }
+
+/* ==================== */
+/* Чистка разметки и модалок */
+/* ==================== */
+
+.artist_card_bg_1 { background-color: #f5c2c7; }
+.artist_card_bg_2 { background-color: #ffd6a5; }
+.artist_card_bg_3 { background-color: #fdffb6; }
+.artist_card_bg_4 { background-color: #caffbf; }
+.artist_card_bg_5 { background-color: #9bf6ff; }
+.artist_card_bg_6 { background-color: #a0c4ff; }
+.artist_card_bg_7 { background-color: #bdb2ff; }
+.artist_card_bg_8 { background-color: #ffc6ff; }
+
+.order-page-image {
+  overflow: hidden;
+}
+
+.order-page-image-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.admin_category_input {
+  max-width: 360px;
+}
+
+.admin_btn_link_cancel {
+  display: inline-flex;
+  align-items: center;
+}
+
+.admin_icon_disabled {
+  opacity: 0.35;
+  display: inline-flex;
+}
+
+.admin_btn_icon_submit {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.admin_category_status {
+  font-weight: 600;
+}
+
+.admin_category_status_error {
+  color: #c62828;
+}
+
+.admin_category_status_success {
+  color: #2e7d32;
+}
+
+.required_name_modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.required_name_modal_card {
+  max-width: 420px;
+  width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.modal_content_relative {
+  position: relative;
+}
+
+.modal_btn_close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.avatar-overlay,
+.modal-image-upload {
+  cursor: pointer;
+}

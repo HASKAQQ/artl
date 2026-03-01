@@ -156,6 +156,7 @@ try {
 
   <?php include 'header.php'; ?>
 
+  <!-- Здесь блок оформления заказа -->
   <section class="order-page-section">
     <div class="container">
       <?php if ($errorMessage !== ''): ?>
@@ -171,7 +172,13 @@ try {
 
         <div class="row g-0">
           <div class="col-lg-5">
-            <div class="order-page-image" style="background: url('<?php echo htmlspecialchars(trim((string) ($service['image_path'] ?? '')) !== '' ? (string) $service['image_path'] : 'src/image/Rectangle 55.png', ENT_QUOTES, 'UTF-8'); ?>') center/cover no-repeat;"></div>
+            <?php
+            $serviceImagePath = trim((string) ($service['image_path'] ?? ''));
+            $serviceImagePath = $serviceImagePath !== '' ? $serviceImagePath : 'src/image/Rectangle 55.png';
+          ?>
+            <div class="order-page-image">
+              <img src="<?php echo htmlspecialchars($serviceImagePath, ENT_QUOTES, 'UTF-8'); ?>" alt="Изображение услуги" class="order-page-image-img">
+            </div>
           </div>
 
           <div class="col-lg-7">

@@ -7,7 +7,6 @@ $adminCategories = [];
 $adminCategoryMessage = '';
 $adminCategoryError = '';
 $editingCategoryId = (int) ($_GET['edit_id'] ?? 0);
-$categoryCreatorUserIds = [];
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -237,6 +236,7 @@ try {
         <div class="container adm-cont-table">
             <div class="row">
                 <div class="col-12">
+                    <!-- Здесь таблица категорий -->
                     <table class="table align-middle">
                         <thead>
                             <tr class="align-middle">
@@ -254,9 +254,9 @@ try {
                                         <form method="post" class="d-flex gap-2 flex-wrap align-items-center">
                                             <input type="hidden" name="category_action" value="save_edit">
                                             <input type="hidden" name="category_id" value="<?php echo (int) $category['id']; ?>">
-                                            <input type="text" class="form-control" style="max-width:360px;" name="edit_category_name" maxlength="255" value="<?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                            <input type="text" class="form-control admin_category_input" name="edit_category_name" maxlength="255" value="<?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>">
                                             <button type="submit" class="admin-btn">Сохранить</button>
-                                            <a href="admin-main.php" class="admin-btn text-decoration-none" style="display:inline-flex;align-items:center;">Отмена</a>
+                                            <a href="admin-main.php" class="admin-btn admin_btn_link_cancel text-decoration-none">Отмена</a>
                                         </form>
                                     <?php else: ?>
                                         <?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>
@@ -273,7 +273,7 @@ try {
                                             <img src="src/image/icons/icons8-показать-100 1.svg" alt="">
                                         </a>
                                     <?php else: ?>
-                                        <span style="opacity:.35;display:inline-flex;" title="Для админ-категории просмотр недоступен">
+                                        <span class="admin_icon_disabled" title="Для админ-категории просмотр недоступен">
                                             <img src="src/image/icons/icons8-показать-100 1.svg" alt="">
                                         </span>
                                     <?php endif; ?>
@@ -282,7 +282,7 @@ try {
                                     <form method="post" onsubmit="return confirm('Удалить категорию?');">
                                         <input type="hidden" name="category_action" value="delete">
                                         <input type="hidden" name="category_id" value="<?php echo (int) $category['id']; ?>">
-                                        <button type="submit" style="background:transparent;border:none;padding:0;">
+                                        <button type="submit" class="admin_btn_icon_submit">
                                             <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="">
                                         </button>
                                     </form>
@@ -293,12 +293,12 @@ try {
                                 <td scope="row">
                                     <form method="post" class="d-flex gap-2 flex-wrap align-items-center">
                                         <input type="hidden" name="category_action" value="add">
-                                        <input type="text" name="new_category" class="form-control" style="max-width:360px;" placeholder="Новая категория" maxlength="255">
+                                        <input type="text" name="new_category" class="form-control admin_category_input" placeholder="Новая категория" maxlength="255">
                                         <button class="admin-btn" type="submit" name="add_category">Добавить категорию</button>
                                         <?php if ($adminCategoryError !== ''): ?>
-                                            <span style="color:#c62828;font-weight:600;"><?php echo htmlspecialchars($adminCategoryError, ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="admin_category_status admin_category_status_error"><?php echo htmlspecialchars($adminCategoryError, ENT_QUOTES, 'UTF-8'); ?></span>
                                         <?php elseif ($adminCategoryMessage !== ''): ?>
-                                            <span style="color:#2e7d32;font-weight:600;"><?php echo htmlspecialchars($adminCategoryMessage, ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="admin_category_status admin_category_status_success"><?php echo htmlspecialchars($adminCategoryMessage, ENT_QUOTES, 'UTF-8'); ?></span>
                                         <?php endif; ?>
                                     </form>
                                 </td>
