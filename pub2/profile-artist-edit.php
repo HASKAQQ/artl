@@ -970,7 +970,7 @@ try {
     $ordersStmt = prepareOrFail(
         $conn,
         'SELECT ao.id, ao.service_title, ao.service_category, ao.service_price, ao.service_image_path, ao.status, ao.created_at,
-                COALESCE(NULLIF(TRIM(u.name), ""), ao.buyer_phone) AS buyer_name, ao.buyer_phone
+                COALESCE(NULLIF(TRIM(u.name), ""), ao.buyer_phone) AS buyer_name, ao.buyer_phone, u.id AS buyer_user_id
          FROM artist_orders ao
          LEFT JOIN users u ON u.phone = ao.buyer_phone
          WHERE ao.artist_phone = ?
@@ -1182,6 +1182,10 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
                       <h3 class="order-title"><?php echo htmlspecialchars((string) ($order['service_title'] ?? 'Услуга художника'), ENT_QUOTES, 'UTF-8'); ?></h3>
                       <p class="order-category"><?php echo htmlspecialchars(trim((string) ($order['service_category'] ?? '')) !== '' ? (string) $order['service_category'] : 'Без категории', ENT_QUOTES, 'UTF-8'); ?></p>
                       <p class="order-category">Заказчик: <?php echo htmlspecialchars((string) ($order['buyer_name'] ?? $order['buyer_phone'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></p>
+                      <?php $buyerUserId = (int) ($order['buyer_user_id'] ?? 0); ?>
+                      <?php if ($buyerUserId > 0): ?>
+                        <p class="order-category"><a href="profile-artist.php?user_id=<?php echo $buyerUserId; ?>" class="text-decoration-underline">Открыть профиль заказчика</a></p>
+                      <?php endif; ?>
 
                       <form method="post" class="m-0">
                         <input type="hidden" name="order_action" value="update_order_status">
