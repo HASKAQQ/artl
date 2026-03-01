@@ -1184,7 +1184,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
                       <p class="order-category">Заказчик: <?php echo htmlspecialchars((string) ($order['buyer_name'] ?? $order['buyer_phone'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></p>
                       <?php $buyerUserId = (int) ($order['buyer_user_id'] ?? 0); ?>
                       <?php if ($buyerUserId > 0): ?>
-                        <p class="order-category"><a href="profile-artist.php?user_id=<?php echo $buyerUserId; ?>" class="text-decoration-underline">Открыть профиль заказчика</a></p>
+                        <p class="order-category"><a href="profile-artist.php?user_id=<?php echo $buyerUserId; ?>" class="text-decoration-none">Открыть профиль заказчика</a></p>
                       <?php endif; ?>
 
                       <form method="post" class="m-0">
