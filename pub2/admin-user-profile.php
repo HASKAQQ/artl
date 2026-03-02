@@ -261,6 +261,7 @@ try {
 
 $displayName = $user ? (string) ($user['name'] ?: 'Пользователь') : 'Профиль';
 $displayRole = $user ? (string) ($user['role'] ?: 'Художник') : 'Художник';
+$isClientRole = $displayRole === 'Заказчик';
 $displayDate = $user ? date('d.m.Y', strtotime((string) $user['registered_at'])) : '—';
 $avatarPath = normalizeImagePath($user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : '', 'src/image/Ellipse 2.png');
 $isBlocked = $user && (int) $user['is_blocked'] === 1;
@@ -331,6 +332,7 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
         </div>
       </div>
 
+<?php if (!$isClientRole): ?>
       <div class="section-collapsible" id="portfolioSection">
         <div class="section-header" onclick="toggleSection('portfolio')">
           <div class="section-title"><h2>Портфолио</h2></div>
@@ -380,6 +382,8 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
           </div>
         </div>
       </div>
+
+      <?php endif; ?>
 
       <div class="section-collapsible" id="reviewsSection">
         <div class="section-header" onclick="toggleSection('reviews')">
