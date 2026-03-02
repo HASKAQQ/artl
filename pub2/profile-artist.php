@@ -316,7 +316,7 @@ $vkHref = $userVk !== '' ? $userVk : '';
             <?php if (count($reviews) > 0): ?>
               <?php foreach ($reviews as $review): ?>
                 <div class="review-card">
-                  <?php $reviewAvatar = trim((string) ($review['reviewer_avatar_path'] ?? '')) !== '' ? (string) $review['reviewer_avatar_path'] : 'src/image/Ellipse 2.png'; ?>
+                  <?php $reviewAvatar = normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'); ?>
                   <img src="<?php echo htmlspecialchars($reviewAvatar, ENT_QUOTES, 'UTF-8'); ?>" alt="User" class="review-avatar">
                   <div class="review-content">
                     <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>

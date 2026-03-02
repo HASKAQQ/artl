@@ -11,7 +11,6 @@ $artistTags = [];
 $reviews = [];
 $orderSuccessMessage = '';
 $orderActionError = '';
-$currentUserRole = '';
 $reviewSuccessMessage = '';
 $reviewActionError = '';
 $canLeaveReview = false;
@@ -36,6 +35,42 @@ function hasColumn(mysqli $conn, string $table, string $column): bool
 
     $result = $conn->query("SHOW COLUMNS FROM {$safeTable} LIKE '{$safeColumn}'");
     return $result !== false && $result->num_rows > 0;
+}
+
+
+function normalizeImagePath(string $path, string $fallback): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+
+    if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    return ltrim($normalized, '/');
+}
+
+function ensureColumnExists(mysqli $conn, string $table, string $column, string $definition): void
+{
+    if (!hasColumn($conn, $table, $column)) {
+        $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+        $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
+        if ($safeTable !== '' && $safeColumn !== '') {
+            $conn->query("ALTER TABLE {$safeTable} ADD COLUMN {$safeColumn} {$definition}");
+        }
+    }
 }
 
 function ensureOrdersTable(mysqli $conn): void
@@ -80,12 +115,12 @@ function ensureReviewsTable(mysqli $conn): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
-    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_user_id INT UNSIGNED DEFAULT NULL');
-    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_name VARCHAR(255) DEFAULT NULL');
-    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_avatar_path VARCHAR(255) DEFAULT NULL');
-    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_role VARCHAR(100) DEFAULT NULL');
-    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS service_id INT UNSIGNED DEFAULT NULL');
-    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+    ensureColumnExists($conn, 'reviews', 'reviewer_user_id', 'INT UNSIGNED DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'reviewer_name', 'VARCHAR(255) DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'reviewer_avatar_path', 'VARCHAR(255) DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'reviewer_role', 'VARCHAR(100) DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'service_id', 'INT UNSIGNED DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
 }
 
 function formatTimeAgo(string $datetime): string
@@ -172,16 +207,7 @@ try {
         } elseif ($artistPhone === '') {
             $orderActionError = 'Не удалось определить художника для выбранной услуги.';
         } else {
-            $roleStmt = prepareOrFail($conn, 'SELECT role FROM users WHERE phone = ? LIMIT 1');
-            $roleStmt->bind_param('s', $buyerPhone);
-            $roleStmt->execute();
-            $roleRow = $roleStmt->get_result()->fetch_assoc();
-            $currentUserRole = trim((string) ($roleRow['role'] ?? ''));
-
-            if ($currentUserRole === 'Художник') {
-                $orderActionError = 'Художник не может оформлять заказы. Переключитесь на роль «Заказчик».';
-            } else {
-                $status = 'paid';
+            $status = 'paid';
             $serviceTitle = trim((string) ($service['title'] ?? 'Услуга художника'));
             $serviceCategory = trim((string) ($service['category'] ?? ''));
             $servicePrice = (float) ($service['price'] ?? 0);
@@ -206,7 +232,6 @@ try {
             );
             $insertOrder->execute();
             $orderSuccessMessage = 'Заказ оформлен. Художник увидит его в разделе «Заказы».';
-            }
         }
     }
 
@@ -318,7 +343,7 @@ try {
             $reviews[] = [
                 'name' => trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : 'Пользователь',
                 'role' => trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) $review['reviewer_role'] : 'Пользователь',
-                'avatar_path' => trim((string) ($review['reviewer_avatar_path'] ?? '')),
+                'avatar_path' => normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'),
                 'text' => trim((string) ($review['reviews'] ?? '')),
             ];
         }
@@ -382,7 +407,7 @@ try {
                 <a href="profile-artist.php?user_id=<?php echo (int) $artist['user_id']; ?>" class="text-decoration-none text-reset d-inline-block">
               <?php endif; ?>
                   <div class="order-page-avatar-wrapper">
-                    <img src="<?php echo htmlspecialchars(trim((string) ($artist['avatar_path'] ?? '')) !== '' ? (string) $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="order-page-avatar">
+                    <img src="<?php echo htmlspecialchars(normalizeImagePath((string) ($artist['avatar_path'] ?? ''), 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="order-page-avatar">
                   </div>
 
                   <h2 class="order-page-artist-name"><?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></h2>
@@ -468,7 +493,7 @@ try {
         <?php if (count($reviews) > 0): ?>
           <?php foreach ($reviews as $review): ?>
             <div class="order-page-review-card">
-              <div class="order-page-review-avatar-placeholder"<?php if (trim((string) ($review['avatar_path'] ?? '')) !== ''): ?> style="background-image:url('<?php echo htmlspecialchars((string) $review['avatar_path'], ENT_QUOTES, 'UTF-8'); ?>');background-size:cover;background-position:center;"<?php endif; ?>></div>
+              <img src="<?php echo htmlspecialchars((string) ($review['avatar_path'] ?? 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Аватар автора отзыва" class="review-avatar">
               <div class="order-page-review-content">
                 <h4 class="order-page-review-name"><?php echo htmlspecialchars((string) ($review['name'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></h4>
                 <p class="mb-1 text-muted"><?php echo htmlspecialchars((string) ($review['role'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></p>
