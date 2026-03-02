@@ -1,26 +1,29 @@
 <?php
 if (!function_exists('normalizeImagePath')) {
 function normalizeImagePath(string $path, string $fallback): string
-    {
-        $trimmed = trim($path);
-        if ($trimmed === '') {
-            return $fallback;
-        }
-    
-        if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
-            return $trimmed;
-        }
-    
-        $normalized = str_replace('\\', '/', $trimmed);
-        if (str_starts_with($normalized, 'pub2/')) {
-            $normalized = substr($normalized, 5);
-        }
-        if (str_starts_with($normalized, '/pub2/')) {
-            $normalized = substr($normalized, 6);
-        }
-    
-        return ltrim($normalized, '/');
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
     }
+
+    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+
+    if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    return ltrim($normalized, '/');
+}
+
 }
 
 if (session_status() === PHP_SESSION_NONE) {

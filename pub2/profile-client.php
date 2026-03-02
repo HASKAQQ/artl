@@ -15,15 +15,18 @@ function normalizeImagePath(string $path, string $fallback): string
     }
 
     $normalized = str_replace('\\', '/', $trimmed);
-    if (str_starts_with($normalized, 'pub2/')) {
-        $normalized = substr($normalized, 5);
+
+    if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
     }
-    if (str_starts_with($normalized, '/pub2/')) {
-        $normalized = substr($normalized, 6);
+
+    if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
     }
 
     return ltrim($normalized, '/');
 }
+
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
