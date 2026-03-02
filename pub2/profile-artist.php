@@ -204,7 +204,7 @@ $vkHref = $userVk !== '' ? $userVk : '';
         </div>
 
         <div class="profile-info col-8 col-lg-9">
-          <div class="d-flex align-items-center gap-3 mb-1">
+          <div class="profile-name-row mb-1">
             <h3 class="profile-name"><?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?></h3>
             <div class="profile-role-toggle">
               <button class="role-btn active" data-role="artist">Художник <img src="src/image/icons/icons8-кисть-100 1.svg" alt=""></button>

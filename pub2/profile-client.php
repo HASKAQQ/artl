@@ -20,6 +20,8 @@ $client = [
     'avatar_path' => 'src/image/Ellipse 2.png',
     'about' => 'О себе...',
     'registered_at' => '',
+    'social_vk' => '',
+    'social_email' => '',
 ];
 
 try {
@@ -36,7 +38,7 @@ try {
         throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
     }
 
-    $stmt = prepareOrFail($conn, 'SELECT name, avatar_path, about, registered_at FROM users WHERE id = ? LIMIT 1');
+    $stmt = prepareOrFail($conn, 'SELECT name, avatar_path, about, registered_at, social_vk, social_email FROM users WHERE id = ? LIMIT 1');
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -49,6 +51,8 @@ try {
     $client['avatar_path'] = trim((string) ($row['avatar_path'] ?? '')) !== '' ? (string) $row['avatar_path'] : 'src/image/Ellipse 2.png';
     $client['about'] = trim((string) ($row['about'] ?? '')) !== '' ? (string) $row['about'] : 'О себе...';
     $client['registered_at'] = (string) ($row['registered_at'] ?? '');
+    $client['social_vk'] = trim((string) ($row['social_vk'] ?? ''));
+    $client['social_email'] = trim((string) ($row['social_email'] ?? ''));
 } catch (Throwable $e) {
     $errorMessage = $e->getMessage();
 }
@@ -56,6 +60,8 @@ try {
 $registrationLabel = trim((string) $client['registered_at']) !== ''
     ? 'Дата регистрации: ' . date('d.m.Y H:i', strtotime((string) $client['registered_at']))
     : 'Дата регистрации: не указана';
+$vkHref = $client['social_vk'] !== '' ? $client['social_vk'] : '';
+$emailHref = $client['social_email'] !== '' ? 'mailto:' . $client['social_email'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -84,13 +90,16 @@ $registrationLabel = trim((string) $client['registered_at']) !== ''
           <div class="profile-avatar-wrapper position-relative">
             <img src="<?php echo htmlspecialchars((string) $client['avatar_path'], ENT_QUOTES, 'UTF-8'); ?>" alt="Avatar" class="profile-avatar">
           </div>
+          <div class="profile-contacts">
+            <a class="contact-link-btn<?php echo $vkHref === "" ? " is-empty" : ""; ?>" <?php echo $vkHref === "" ? "aria-disabled=\"true\"" : "href=\"" . htmlspecialchars($vkHref, ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\" rel=\"noopener noreferrer\""; ?>><img src="src/image/icons/vk-icon.svg" alt="VK"></a>
+            <a class="contact-link-btn<?php echo $emailHref === "" ? " is-empty" : ""; ?>" <?php echo $emailHref === "" ? "aria-disabled=\"true\"" : "href=\"" . htmlspecialchars($emailHref, ENT_QUOTES, 'UTF-8') . "\""; ?>><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email" class="contact-link-email-icon"></a>
+          </div>
         </div>
 
         <div class="profile-info col-8 col-lg-9">
-          <div class="d-flex align-items-center gap-3 mb-1">
+          <div class="profile-name-row mb-1">
             <h3 class="profile-name"><?php echo htmlspecialchars((string) $client['name'], ENT_QUOTES, 'UTF-8'); ?></h3>
             <div class="profile-role-toggle">
-              <button class="role-btn" type="button" disabled>Художник <img src="src/image/icons/icons8-кисть-100 1.svg" alt=""></button>
               <button class="role-btn active" type="button" disabled>Заказчик <img src="src/image/icons/icons8-заказ-100 1.svg" alt=""></button>
             </div>
           </div>
