@@ -7,6 +7,28 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
     exit;
 }
 
+function normalizeImagePath(string $path, string $fallback): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+    if (str_starts_with($normalized, 'pub2/')) {
+        $normalized = substr($normalized, 5);
+    }
+    if (str_starts_with($normalized, '/pub2/')) {
+        $normalized = substr($normalized, 6);
+    }
+
+    return ltrim($normalized, '/');
+}
+
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
     $stmt = $conn->prepare($sql);
@@ -1039,7 +1061,7 @@ try {
 }
 
 $registrationLabel = $registeredAt !== '' ? 'Дата регистрации: ' . date('d.m.Y H:i', strtotime($registeredAt)) : 'Дата регистрации: ещё не заполнена';
-$avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+$avatarSrc = htmlspecialchars(normalizeImagePath($avatarPath, 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8');
 $showNameModal = $userName === '';
 
 $socialLinks = [

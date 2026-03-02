@@ -1,4 +1,26 @@
 <?php
+function normalizeImagePath(string $path, string $fallback): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+    if (str_starts_with($normalized, 'pub2/')) {
+        $normalized = substr($normalized, 5);
+    }
+    if (str_starts_with($normalized, '/pub2/')) {
+        $normalized = substr($normalized, 6);
+    }
+
+    return ltrim($normalized, '/');
+}
+
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
     $stmt = $conn->prepare($sql);
@@ -161,7 +183,7 @@ try {
 
 $displayName = $user ? (string) ($user['name'] ?: 'Художник') : 'Профиль художника';
 $displayDate = $user ? date('d.m.Y', strtotime((string) ($user['registered_at'] ?? 'now'))) : '—';
-$avatarPath = $user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : 'src/image/Ellipse 2.png';
+$avatarPath = normalizeImagePath($user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : '', 'src/image/Ellipse 2.png');
 $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
 $vkHref = $userVk !== '' ? $userVk : '';
 ?>
