@@ -172,7 +172,11 @@ try {
     }
 
     if (hasColumn($conn, 'reviews', 'user_id') && hasColumn($conn, 'reviews', 'reviews')) {
-        $reviewsStmt = prepareOrFail($conn, 'SELECT id, reviews FROM reviews WHERE user_id = ? ORDER BY id DESC');
+        $reviewColumns = ['id', 'reviews'];
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_name') ? 'reviewer_name' : 'NULL AS reviewer_name';
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_avatar_path') ? 'reviewer_avatar_path' : 'NULL AS reviewer_avatar_path';
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_role') ? 'reviewer_role' : 'NULL AS reviewer_role';
+        $reviewsStmt = prepareOrFail($conn, 'SELECT ' . implode(', ', $reviewColumns) . ' FROM reviews WHERE user_id = ? ORDER BY id DESC');
         $reviewsStmt->bind_param('i', $userId);
         $reviewsStmt->execute();
         $reviewsRes = $reviewsStmt->get_result();
@@ -312,9 +316,11 @@ $vkHref = $userVk !== '' ? $userVk : '';
             <?php if (count($reviews) > 0): ?>
               <?php foreach ($reviews as $review): ?>
                 <div class="review-card">
-                  <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
+                  <?php $reviewAvatar = trim((string) ($review['reviewer_avatar_path'] ?? '')) !== '' ? (string) $review['reviewer_avatar_path'] : 'src/image/Ellipse 2.png'; ?>
+                  <img src="<?php echo htmlspecialchars($reviewAvatar, ENT_QUOTES, 'UTF-8'); ?>" alt="User" class="review-avatar">
                   <div class="review-content">
-                    <h4 class="review-name">Отзыв #<?php echo (int) ($review['id'] ?? 0); ?></h4>
+                    <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
+                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) $review['reviewer_role'] : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
                     <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>

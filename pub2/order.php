@@ -61,6 +61,33 @@ function ensureOrdersTable(mysqli $conn): void
     );
 }
 
+function ensureReviewsTable(mysqli $conn): void
+{
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS reviews (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            reviews TEXT NOT NULL,
+            reviewer_user_id INT UNSIGNED DEFAULT NULL,
+            reviewer_name VARCHAR(255) DEFAULT NULL,
+            reviewer_avatar_path VARCHAR(255) DEFAULT NULL,
+            reviewer_role VARCHAR(100) DEFAULT NULL,
+            service_id INT UNSIGNED DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_review_user_id (user_id),
+            INDEX idx_reviewer_user_id (reviewer_user_id),
+            INDEX idx_review_service_id (service_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_user_id INT UNSIGNED DEFAULT NULL');
+    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_name VARCHAR(255) DEFAULT NULL');
+    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_avatar_path VARCHAR(255) DEFAULT NULL');
+    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_role VARCHAR(100) DEFAULT NULL');
+    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS service_id INT UNSIGNED DEFAULT NULL');
+    $conn->query('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+}
+
 function formatTimeAgo(string $datetime): string
 {
     if ($datetime === '') {
@@ -102,6 +129,7 @@ try {
     }
 
     ensureOrdersTable($conn);
+    ensureReviewsTable($conn);
 
     $userColumns = ['u.id AS artist_user_id', 'u.name', 'u.avatar_path', 'u.phone'];
     $userColumns[] = hasColumn($conn, 'users', 'about') ? 'u.about' : 'NULL AS about';
@@ -204,11 +232,39 @@ try {
             if (!$purchaseExists) {
                 $reviewActionError = 'Оставить отзыв можно только после покупки услуги.';
             } else {
-                $insertReviewStmt = prepareOrFail(
+                $reviewerInfoStmt = prepareOrFail(
                     $conn,
-                    'INSERT INTO reviews (user_id, reviews) VALUES (?, ?)'
+                    'SELECT id, name, avatar_path, role FROM users WHERE phone = ? LIMIT 1'
                 );
-                $insertReviewStmt->bind_param('is', $artistUserId, $reviewText);
+                $reviewerInfoStmt->bind_param('s', $buyerPhone);
+                $reviewerInfoStmt->execute();
+                $reviewerInfo = $reviewerInfoStmt->get_result()->fetch_assoc() ?: [];
+
+                $reviewerUserId = (int) ($reviewerInfo['id'] ?? 0);
+                $reviewerName = trim((string) ($reviewerInfo['name'] ?? 'Пользователь'));
+                $reviewerAvatar = trim((string) ($reviewerInfo['avatar_path'] ?? ''));
+                $reviewerRole = trim((string) ($reviewerInfo['role'] ?? 'Пользователь'));
+
+                $hasReviewMetaColumns = hasColumn($conn, 'reviews', 'reviewer_user_id')
+                    && hasColumn($conn, 'reviews', 'reviewer_name')
+                    && hasColumn($conn, 'reviews', 'reviewer_avatar_path')
+                    && hasColumn($conn, 'reviews', 'reviewer_role')
+                    && hasColumn($conn, 'reviews', 'service_id');
+
+                if ($hasReviewMetaColumns) {
+                    $insertReviewStmt = prepareOrFail(
+                        $conn,
+                        'INSERT INTO reviews (user_id, reviews, reviewer_user_id, reviewer_name, reviewer_avatar_path, reviewer_role, service_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $insertReviewStmt->bind_param('isisssi', $artistUserId, $reviewText, $reviewerUserId, $reviewerName, $reviewerAvatar, $reviewerRole, $serviceId);
+                } else {
+                    $insertReviewStmt = prepareOrFail(
+                        $conn,
+                        'INSERT INTO reviews (user_id, reviews) VALUES (?, ?)'
+                    );
+                    $insertReviewStmt->bind_param('is', $artistUserId, $reviewText);
+                }
+
                 $insertReviewStmt->execute();
                 $reviewSuccessMessage = 'Спасибо! Ваш отзыв опубликован.';
             }
@@ -250,13 +306,19 @@ try {
     }
 
     if ($artistUserId > 0 && hasColumn($conn, 'reviews', 'user_id') && hasColumn($conn, 'reviews', 'reviews')) {
-        $reviewsStmt = prepareOrFail($conn, 'SELECT id, reviews FROM reviews WHERE user_id = ? ORDER BY id DESC LIMIT 6');
+        $reviewsColumns = ['id', 'reviews'];
+        $reviewsColumns[] = hasColumn($conn, 'reviews', 'reviewer_name') ? 'reviewer_name' : 'NULL AS reviewer_name';
+        $reviewsColumns[] = hasColumn($conn, 'reviews', 'reviewer_avatar_path') ? 'reviewer_avatar_path' : 'NULL AS reviewer_avatar_path';
+        $reviewsColumns[] = hasColumn($conn, 'reviews', 'reviewer_role') ? 'reviewer_role' : 'NULL AS reviewer_role';
+        $reviewsStmt = prepareOrFail($conn, 'SELECT ' . implode(', ', $reviewsColumns) . ' FROM reviews WHERE user_id = ? ORDER BY id DESC LIMIT 6');
         $reviewsStmt->bind_param('i', $artistUserId);
         $reviewsStmt->execute();
         $reviewsRes = $reviewsStmt->get_result();
         while ($review = $reviewsRes->fetch_assoc()) {
             $reviews[] = [
-                'name' => 'Пользователь',
+                'name' => trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : 'Пользователь',
+                'role' => trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) $review['reviewer_role'] : 'Пользователь',
+                'avatar_path' => trim((string) ($review['reviewer_avatar_path'] ?? '')),
                 'text' => trim((string) ($review['reviews'] ?? '')),
             ];
         }
@@ -406,9 +468,10 @@ try {
         <?php if (count($reviews) > 0): ?>
           <?php foreach ($reviews as $review): ?>
             <div class="order-page-review-card">
-              <div class="order-page-review-avatar-placeholder"></div>
+              <div class="order-page-review-avatar-placeholder"<?php if (trim((string) ($review['avatar_path'] ?? '')) !== ''): ?> style="background-image:url('<?php echo htmlspecialchars((string) $review['avatar_path'], ENT_QUOTES, 'UTF-8'); ?>');background-size:cover;background-position:center;"<?php endif; ?>></div>
               <div class="order-page-review-content">
                 <h4 class="order-page-review-name"><?php echo htmlspecialchars((string) ($review['name'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></h4>
+                <p class="mb-1 text-muted"><?php echo htmlspecialchars((string) ($review['role'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></p>
                 <p class="order-page-review-text"><?php echo htmlspecialchars((string) ($review['text'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
               </div>
             </div>
