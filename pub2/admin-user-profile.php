@@ -331,32 +331,6 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
         </div>
       </div>
 
-      <div class="section-collapsible" id="ordersSection">
-        <div class="section-header" onclick="toggleSection('orders')">
-          <h2>Заказы</h2>
-          <span class="toggle-arrow" id="ordersArrow">▼</span>
-        </div>
-        <div class="section-content" id="ordersContent">
-          <div class="services-grid row g-3">
-            <?php if (count($orders) > 0): ?>
-              <?php foreach ($orders as $order): ?>
-                <div class="col-12 col-lg-6">
-                  <div class="review-card h-100">
-                    <img src="src/image/Ellipse 2.png" alt="Order" class="review-avatar">
-                    <div class="review-content">
-                      <h4 class="review-name">Заказ #<?php echo (int) ($order['id'] ?? 0); ?></h4>
-                      <p class="review-text">Статус: <?php echo htmlspecialchars((string) ($order['status'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?><?php if (!empty($order['order_date'])): ?> · Дата: <?php echo htmlspecialchars((string) $order['order_date'], ENT_QUOTES, 'UTF-8'); ?><?php endif; ?></p>
-                    </div>
-                  </div>
-                </div>
-              <?php endforeach; ?>
-            <?php else: ?>
-              <p>Заказов пока нет.</p>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-
       <div class="section-collapsible" id="portfolioSection">
         <div class="section-header" onclick="toggleSection('portfolio')">
           <div class="section-title"><h2>Портфолио</h2></div>
