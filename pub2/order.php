@@ -389,16 +389,16 @@ try {
         <div class="order-page-reviews-header">
           <h2 class="order-page-reviews-title">Отзывы</h2>
           <?php if ($canLeaveReview): ?>
-            <button class="order-page-leave-review-btn" type="button" onclick="document.getElementById('orderReviewForm').scrollIntoView({behavior:'smooth', block:'center'});">Оставить отзыв</button>
+            <button class="order-page-leave-review-btn" type="button" onclick="const f=document.getElementById('orderReviewForm'); if(f){f.style.display='block';}">Оставить отзыв</button>
           <?php endif; ?>
         </div>
 
         <?php if ($canLeaveReview): ?>
-          <form method="post" class="order-page-review-card mb-3" id="orderReviewForm">
+          <form method="post" class="order-page-review-card mb-3" id="orderReviewForm" style="<?php echo ($reviewActionError !== '' || $reviewSuccessMessage !== '') ? 'display:block;' : 'display:none;'; ?>">
             <div class="order-page-review-content w-100">
               <input type="hidden" name="action" value="leave_review">
               <textarea name="review_text" class="form-control mb-2" rows="3" maxlength="1000" placeholder="Напишите отзыв о работе художника..."></textarea>
-              <button class="order-page-buy-btn" type="submit" style="max-width:220px;">Отправить отзыв</button>
+              <button class="order-page-buy-btn" type="submit" style="max-width:160px;padding:8px 16px;font-size:14px;">Отправить отзыв</button>
             </div>
           </form>
         <?php endif; ?>
