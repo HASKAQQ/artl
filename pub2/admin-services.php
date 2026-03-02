@@ -1,3 +1,49 @@
+<?php
+session_start();
+
+function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
+{
+    $stmt = $conn->prepare($sql);
+    if ($stmt === false) {
+        throw new RuntimeException('Ошибка SQL: ' . $conn->error);
+    }
+
+    return $stmt;
+}
+
+$services = [];
+
+try {
+    $conn = new mysqli('MySQL-8.0', 'root', '');
+    if ($conn->connect_error) {
+        throw new RuntimeException('Не удалось подключиться к MySQL: ' . $conn->connect_error);
+    }
+
+    $conn->set_charset('utf8mb4');
+    if (!$conn->select_db('artlance')) {
+        throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
+    }
+
+    $salesSubquery = 'SELECT service_id, COUNT(*) AS sales_count FROM artist_orders GROUP BY service_id';
+    $servicesStmt = prepareOrFail(
+        $conn,
+        'SELECT s.id, s.title, s.category, s.price, s.created_at, u.id AS artist_user_id,
+                COALESCE(NULLIF(TRIM(u.name), ""), s.user_phone) AS artist_name,
+                COALESCE(o.sales_count, 0) AS sales_count
+         FROM artist_services s
+         LEFT JOIN users u ON u.phone = s.user_phone
+         LEFT JOIN (' . $salesSubquery . ') o ON o.service_id = s.id
+         ORDER BY s.id DESC'
+    );
+    $servicesStmt->execute();
+    $servicesRes = $servicesStmt->get_result();
+    while ($row = $servicesRes->fetch_assoc()) {
+        $services[] = $row;
+    }
+} catch (Throwable $e) {
+    $services = [];
+}
+?>
 <!DOCTYPE html>
 <html lang="ru">
 
@@ -79,67 +125,28 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Цифровая живопись</td>
-                                <td>30 000р</td>
-                                <td>10</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Цифровая живопись</td>
-                                <td>30 000р</td>
-                                <td>10</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Цифровая живопись</td>
-                                <td>30 000р</td>
-                                <td>10</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Цифровая живопись</td>
-                                <td>30 000р</td>
-                                <td>10</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Цифровая живопись</td>
-                                <td>30 000р</td>
-                                <td>10</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-
+                            <?php if (count($services) > 0): ?>
+                              <?php foreach ($services as $service): ?>
+                                <tr class="align-middle">
+                                  <td scope=""><?php echo (int) ($service['id'] ?? 0); ?></td>
+                                  <td><?php echo htmlspecialchars((string) ($service['title'] ?? 'Услуга'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><?php echo htmlspecialchars((string) ($service['artist_name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><?php echo htmlspecialchars((string) ($service['category'] ?? 'Без категории'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><?php echo number_format((float) ($service['price'] ?? 0), 0, '.', ' '); ?>р</td>
+                                  <td><?php echo (int) ($service['sales_count'] ?? 0); ?></td>
+                                  <td><?php echo htmlspecialchars(date('d.m.y', strtotime((string) ($service['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><img src="src/image/icons/icons8-редактировать-100 1.svg" alt=""></td>
+                                  <td>
+                                    <?php if ((int) ($service['artist_user_id'] ?? 0) > 0): ?>
+                                      <a href="admin-user-profile.php?user_id=<?php echo (int) $service['artist_user_id']; ?>"><img src="src/image/icons/icons8-показать-100 1.svg" alt=""></a>
+                                    <?php endif; ?>
+                                  </td>
+                                  <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
+                                </tr>
+                              <?php endforeach; ?>
+                            <?php else: ?>
+                              <tr class="align-middle"><td colspan="10">Нет услуг.</td></tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
