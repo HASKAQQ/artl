@@ -1504,7 +1504,9 @@ a.contact-link-btn.is-empty {
 }
 
 #portfolioSection,
-#servicesSection {
+#servicesSection,
+#ordersSection,
+#reviewsSection {
   background-color: #fff;
   border-radius: 5px;
 
@@ -2942,4 +2944,13 @@ a.contact-link-btn.is-empty {
   text-align: center;
   background-image: none !important;
   padding-right: 12px;
+}
+
+
+.admin-user-profile-page .profile-section {
+  padding-bottom: 1px;
+}
+
+.admin-user-profile-page .section-collapsible:last-child {
+  margin-bottom: 0;
 }
