@@ -12,6 +12,9 @@ $reviews = [];
 $orderSuccessMessage = '';
 $orderActionError = '';
 $currentUserRole = '';
+$reviewSuccessMessage = '';
+$reviewActionError = '';
+$canLeaveReview = false;
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -179,6 +182,50 @@ try {
         }
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'leave_review') {
+        $buyerPhone = trim((string) ($_SESSION['user_phone'] ?? ''));
+        $reviewText = trim((string) ($_POST['review_text'] ?? ''));
+
+        if ($buyerPhone === '') {
+            $reviewActionError = 'Чтобы оставить отзыв, сначала войдите в аккаунт.';
+        } elseif ($reviewText === '') {
+            $reviewActionError = 'Введите текст отзыва.';
+        } elseif ($artistUserId <= 0 || !hasColumn($conn, 'reviews', 'user_id') || !hasColumn($conn, 'reviews', 'reviews')) {
+            $reviewActionError = 'Сейчас оставить отзыв нельзя. Попробуйте позже.';
+        } else {
+            $purchaseCheckStmt = prepareOrFail(
+                $conn,
+                'SELECT id FROM artist_orders WHERE service_id = ? AND buyer_phone = ? LIMIT 1'
+            );
+            $purchaseCheckStmt->bind_param('is', $serviceId, $buyerPhone);
+            $purchaseCheckStmt->execute();
+            $purchaseExists = $purchaseCheckStmt->get_result()->fetch_assoc();
+
+            if (!$purchaseExists) {
+                $reviewActionError = 'Оставить отзыв можно только после покупки услуги.';
+            } else {
+                $insertReviewStmt = prepareOrFail(
+                    $conn,
+                    'INSERT INTO reviews (user_id, reviews) VALUES (?, ?)'
+                );
+                $insertReviewStmt->bind_param('is', $artistUserId, $reviewText);
+                $insertReviewStmt->execute();
+                $reviewSuccessMessage = 'Спасибо! Ваш отзыв опубликован.';
+            }
+        }
+    }
+
+    $viewerPhone = trim((string) ($_SESSION['user_phone'] ?? ''));
+    if ($viewerPhone !== '') {
+        $canReviewStmt = prepareOrFail(
+            $conn,
+            'SELECT id FROM artist_orders WHERE service_id = ? AND buyer_phone = ? LIMIT 1'
+        );
+        $canReviewStmt->bind_param('is', $serviceId, $viewerPhone);
+        $canReviewStmt->execute();
+        $canLeaveReview = $canReviewStmt->get_result()->fetch_assoc() !== null;
+    }
+
     if ($artistUserId > 0 && hasColumn($conn, 'profile_categories', 'profile_user_id')) {
         $tagsStmt = prepareOrFail(
             $conn,
@@ -245,6 +292,14 @@ try {
 
       <?php if ($orderSuccessMessage !== ''): ?>
         <div class="alert alert-success mb-4"><?php echo htmlspecialchars($orderSuccessMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
+      <?php if ($reviewActionError !== ''): ?>
+        <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($reviewActionError, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
+      <?php if ($reviewSuccessMessage !== ''): ?>
+        <div class="alert alert-success mb-4"><?php echo htmlspecialchars($reviewSuccessMessage, ENT_QUOTES, 'UTF-8'); ?></div>
       <?php endif; ?>
 
       <?php if ($errorMessage === '' && is_array($service)): ?>
@@ -333,8 +388,20 @@ try {
       <div class="order-page-reviews">
         <div class="order-page-reviews-header">
           <h2 class="order-page-reviews-title">Отзывы</h2>
-          <button class="order-page-leave-review-btn" type="button">Оставить отзыв</button>
+          <?php if ($canLeaveReview): ?>
+            <button class="order-page-leave-review-btn" type="button" onclick="document.getElementById('orderReviewForm').scrollIntoView({behavior:'smooth', block:'center'});">Оставить отзыв</button>
+          <?php endif; ?>
         </div>
+
+        <?php if ($canLeaveReview): ?>
+          <form method="post" class="order-page-review-card mb-3" id="orderReviewForm">
+            <div class="order-page-review-content w-100">
+              <input type="hidden" name="action" value="leave_review">
+              <textarea name="review_text" class="form-control mb-2" rows="3" maxlength="1000" placeholder="Напишите отзыв о работе художника..."></textarea>
+              <button class="order-page-buy-btn" type="submit" style="max-width:220px;">Отправить отзыв</button>
+            </div>
+          </form>
+        <?php endif; ?>
 
         <?php if (count($reviews) > 0): ?>
           <?php foreach ($reviews as $review): ?>
