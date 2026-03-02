@@ -63,6 +63,7 @@ $profileMenuLabel = 'Профиль';
 if (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     $profileLink = 'admin-main.php';
     $profileMenuLabel = 'Панель';
+    $avatarSrc = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="%23000000"/></svg>';
 }
 ?>
 <header class="header border-bottom border-4" id="header">
