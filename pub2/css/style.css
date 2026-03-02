@@ -2933,3 +2933,13 @@ a.contact-link-btn.is-empty {
     height: 60px;
   }
 }
+
+
+.order-status-readonly {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background-image: none !important;
+  padding-right: 12px;
+}

@@ -225,7 +225,7 @@ try {
         $ordersStmt = prepareOrFail(
             $conn,
             'SELECT ao.id, ao.service_title, ao.service_category, ao.service_price, ao.service_image_path, ao.status, ao.created_at,
-                    COALESCE(NULLIF(TRIM(u.name), ""), ao.artist_phone) AS artist_name, ao.artist_phone
+                    COALESCE(NULLIF(TRIM(u.name), ""), ao.artist_phone) AS artist_name, ao.artist_phone, u.id AS artist_user_id
              FROM artist_orders ao
              LEFT JOIN users u ON u.phone = ao.artist_phone
              WHERE ao.buyer_phone = ?
@@ -385,14 +385,15 @@ $avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF
                       <h3 class="order-title"><?php echo htmlspecialchars((string) ($order['service_title'] ?? 'Услуга художника'), ENT_QUOTES, 'UTF-8'); ?></h3>
                       <p class="order-category"><?php echo htmlspecialchars(trim((string) ($order['service_category'] ?? '')) !== '' ? (string) $order['service_category'] : 'Без категории', ENT_QUOTES, 'UTF-8'); ?></p>
                       <p class="order-category">Художник: <?php echo htmlspecialchars((string) ($order['artist_name'] ?? $order['artist_phone'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></p>
+                      <?php $artistUserId = (int) ($order['artist_user_id'] ?? 0); ?>
+                      <?php if ($artistUserId > 0): ?>
+                        <p class="order-category"><a href="profile-artist.php?user_id=<?php echo $artistUserId; ?>" class="text-decoration-none">Открыть профиль художника</a></p>
+                      <?php endif; ?>
 
                       <div class="d-flex align-items-center justify-content-between gap-2">
                         <?php $currentStatus = (string) ($order['status'] ?? 'paid'); ?>
-                        <select class="order-status" disabled>
-                          <option class="orders-status-option" value="paid" <?php echo $currentStatus === 'paid' ? 'selected' : ''; ?>>Оплачен</option>
-                          <option class="orders-status-option" value="in-progress" <?php echo $currentStatus === 'in-progress' ? 'selected' : ''; ?>>В работе</option>
-                          <option class="orders-status-option" value="completed" <?php echo $currentStatus === 'completed' ? 'selected' : ''; ?>>Завершено</option>
-                        </select>
+                        <?php $statusLabel = $currentStatus === 'in-progress' ? 'В работе' : ($currentStatus === 'completed' ? 'Завершено' : 'Оплачен'); ?>
+                        <div class="order-status order-status-readonly"><?php echo htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8'); ?></div>
                         <p class="order-price mb-0 text-end"><?php echo number_format((float) ($order['service_price'] ?? 0), 0, '.', ' '); ?>р</p>
                       </div>
 
