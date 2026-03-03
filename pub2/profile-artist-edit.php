@@ -1201,7 +1201,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
             <div class="row g-3">
               <?php foreach ($artistOrders as $order): ?>
                 <div class="col-12 col-lg-6">
-                  <div class="order-card bg-white">
+                  <div class="order-card">
                     <img src="<?php echo htmlspecialchars(trim((string) ($order['service_image_path'] ?? '')) !== '' ? (string) $order['service_image_path'] : 'src/image/Rectangle 55.png', ENT_QUOTES, 'UTF-8'); ?>" alt="Service" class="order-image">
                     <div class="order-details">
                       <h3 class="order-title"><?php echo htmlspecialchars((string) ($order['service_title'] ?? 'Услуга художника'), ENT_QUOTES, 'UTF-8'); ?></h3>

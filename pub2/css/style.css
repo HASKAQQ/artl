@@ -2954,3 +2954,15 @@ a.contact-link-btn.is-empty {
 .admin-user-profile-page .section-collapsible:last-child {
   margin-bottom: 0;
 }
+
+
+/* profile: remove white backgrounds for orders and reviews sections/cards */
+#ordersSection,
+#reviewsSection {
+  background-color: transparent;
+}
+
+.profile-section .order-card,
+.profile-section .review-card {
+  background-color: transparent;
+}
