@@ -200,12 +200,24 @@ try {
     $artistUserId = (int) ($service['artist_user_id'] ?? 0);
     $artistPhone = trim((string) ($service['user_phone'] ?? ''));
 
+    $viewerPhone = trim((string) ($_SESSION['user_phone'] ?? ''));
+    $viewerUserId = 0;
+    if ($viewerPhone !== '') {
+        $viewerStmt = prepareOrFail($conn, 'SELECT id FROM users WHERE phone = ? LIMIT 1');
+        $viewerStmt->bind_param('s', $viewerPhone);
+        $viewerStmt->execute();
+        $viewerRow = $viewerStmt->get_result()->fetch_assoc();
+        $viewerUserId = (int) ($viewerRow['id'] ?? 0);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'buy_service') {
-        $buyerPhone = trim((string) ($_SESSION['user_phone'] ?? ''));
+        $buyerPhone = $viewerPhone;
         if ($buyerPhone === '') {
             $orderActionError = 'Чтобы оформить заказ, сначала войдите в аккаунт.';
         } elseif ($artistPhone === '') {
             $orderActionError = 'Не удалось определить художника для выбранной услуги.';
+        } elseif ($viewerUserId > 0 && $artistUserId > 0 && $viewerUserId === $artistUserId) {
+            $orderActionError = 'Нельзя оформить заказ на собственную услугу. Выберите услугу другого художника.';
         } else {
             $status = 'paid';
             $serviceTitle = trim((string) ($service['title'] ?? 'Услуга художника'));
@@ -236,7 +248,7 @@ try {
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'leave_review') {
-        $buyerPhone = trim((string) ($_SESSION['user_phone'] ?? ''));
+        $buyerPhone = $viewerPhone;
         $reviewText = trim((string) ($_POST['review_text'] ?? ''));
 
         if ($buyerPhone === '') {
@@ -246,46 +258,65 @@ try {
         } elseif ($artistUserId <= 0 || !hasColumn($conn, 'reviews', 'user_id') || !hasColumn($conn, 'reviews', 'reviews')) {
             $reviewActionError = 'Сейчас оставить отзыв нельзя. Попробуйте позже.';
         } else {
-            $reviewerInfoStmt = prepareOrFail(
+            $purchaseCheckStmt = prepareOrFail(
                 $conn,
-                'SELECT id, name, avatar_path, role FROM users WHERE phone = ? LIMIT 1'
+                'SELECT id FROM artist_orders WHERE service_id = ? AND buyer_phone = ? LIMIT 1'
             );
-            $reviewerInfoStmt->bind_param('s', $buyerPhone);
-            $reviewerInfoStmt->execute();
-            $reviewerInfo = $reviewerInfoStmt->get_result()->fetch_assoc() ?: [];
+            $purchaseCheckStmt->bind_param('is', $serviceId, $buyerPhone);
+            $purchaseCheckStmt->execute();
+            $purchaseExists = $purchaseCheckStmt->get_result()->fetch_assoc();
 
-            $reviewerUserId = (int) ($reviewerInfo['id'] ?? 0);
-            $reviewerName = trim((string) ($reviewerInfo['name'] ?? 'Пользователь'));
-            $reviewerAvatar = trim((string) ($reviewerInfo['avatar_path'] ?? ''));
-            $reviewerRole = trim((string) ($reviewerInfo['role'] ?? 'Пользователь'));
-
-            $hasReviewMetaColumns = hasColumn($conn, 'reviews', 'reviewer_user_id')
-                && hasColumn($conn, 'reviews', 'reviewer_name')
-                && hasColumn($conn, 'reviews', 'reviewer_avatar_path')
-                && hasColumn($conn, 'reviews', 'reviewer_role')
-                && hasColumn($conn, 'reviews', 'service_id');
-
-            if ($hasReviewMetaColumns) {
-                $insertReviewStmt = prepareOrFail(
-                    $conn,
-                    'INSERT INTO reviews (user_id, reviews, reviewer_user_id, reviewer_name, reviewer_avatar_path, reviewer_role, service_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-                );
-                $insertReviewStmt->bind_param('isisssi', $artistUserId, $reviewText, $reviewerUserId, $reviewerName, $reviewerAvatar, $reviewerRole, $serviceId);
+            if (!$purchaseExists) {
+                $reviewActionError = 'Оставить отзыв можно только после покупки услуги.';
             } else {
-                $insertReviewStmt = prepareOrFail(
+                $reviewerInfoStmt = prepareOrFail(
                     $conn,
-                    'INSERT INTO reviews (user_id, reviews) VALUES (?, ?)'
+                    'SELECT id, name, avatar_path, role FROM users WHERE phone = ? LIMIT 1'
                 );
-                $insertReviewStmt->bind_param('is', $artistUserId, $reviewText);
-            }
+                $reviewerInfoStmt->bind_param('s', $buyerPhone);
+                $reviewerInfoStmt->execute();
+                $reviewerInfo = $reviewerInfoStmt->get_result()->fetch_assoc() ?: [];
 
-            $insertReviewStmt->execute();
-            $reviewSuccessMessage = 'Спасибо! Ваш отзыв опубликован.';
+                $reviewerUserId = (int) ($reviewerInfo['id'] ?? 0);
+                $reviewerName = trim((string) ($reviewerInfo['name'] ?? 'Пользователь'));
+                $reviewerAvatar = trim((string) ($reviewerInfo['avatar_path'] ?? ''));
+                $reviewerRole = trim((string) ($reviewerInfo['role'] ?? 'Пользователь'));
+
+                $hasReviewMetaColumns = hasColumn($conn, 'reviews', 'reviewer_user_id')
+                    && hasColumn($conn, 'reviews', 'reviewer_name')
+                    && hasColumn($conn, 'reviews', 'reviewer_avatar_path')
+                    && hasColumn($conn, 'reviews', 'reviewer_role')
+                    && hasColumn($conn, 'reviews', 'service_id');
+
+                if ($hasReviewMetaColumns) {
+                    $insertReviewStmt = prepareOrFail(
+                        $conn,
+                        'INSERT INTO reviews (user_id, reviews, reviewer_user_id, reviewer_name, reviewer_avatar_path, reviewer_role, service_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $insertReviewStmt->bind_param('isisssi', $artistUserId, $reviewText, $reviewerUserId, $reviewerName, $reviewerAvatar, $reviewerRole, $serviceId);
+                } else {
+                    $insertReviewStmt = prepareOrFail(
+                        $conn,
+                        'INSERT INTO reviews (user_id, reviews) VALUES (?, ?)'
+                    );
+                    $insertReviewStmt->bind_param('is', $artistUserId, $reviewText);
+                }
+
+                $insertReviewStmt->execute();
+                $reviewSuccessMessage = 'Спасибо! Ваш отзыв опубликован.';
+            }
         }
     }
 
-    $viewerPhone = trim((string) ($_SESSION['user_phone'] ?? ''));
-    $canLeaveReview = $viewerPhone !== '';
+    if ($viewerPhone !== '') {
+        $canReviewStmt = prepareOrFail(
+            $conn,
+            'SELECT id FROM artist_orders WHERE service_id = ? AND buyer_phone = ? LIMIT 1'
+        );
+        $canReviewStmt->bind_param('is', $serviceId, $viewerPhone);
+        $canReviewStmt->execute();
+        $canLeaveReview = $canReviewStmt->get_result()->fetch_assoc() !== null;
+    }
 
     if ($artistUserId > 0 && hasColumn($conn, 'profile_categories', 'profile_user_id')) {
         $tagsStmt = prepareOrFail(
