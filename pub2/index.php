@@ -23,6 +23,22 @@ function normalizeImagePath(string $path, string $fallback): string
   return ltrim($normalized, '/');
 }
 
+function getArtistCardColor(int $artistId): string
+{
+  $palette = [
+    '#f5c2c7',
+    '#ffd6a5',
+    '#fdffb6',
+    '#caffbf',
+    '#9bf6ff',
+    '#a0c4ff',
+    '#bdb2ff',
+    '#ffc6ff',
+  ];
+
+  return $palette[$artistId % count($palette)];
+}
+
 $homepageCategories = [
   'Цифровая живопись',
   'Графический дизайн',
@@ -36,28 +52,27 @@ $homepageCategories = [
 
 $homepageArtists = [
   [
-    'id' => 0,
+    'id' => 1,
     'name' => 'Екатерина Кравчюк',
-    'specialty' => '3D-моделирование',
+    'specialty' => 'Художник',
     'avatar_path' => 'src/image/Ellipse 2.png',
-    'background_path' => 'src/image/Rectangle 55.png',
+    'card_color' => getArtistCardColor(1),
   ],
   [
-    'id' => 0,
+    'id' => 2,
     'name' => 'Марина Рафт',
-    'specialty' => 'Иллюстрация',
+    'specialty' => 'Художник',
     'avatar_path' => 'src/image/Ellipse 3.png',
-    'background_path' => 'src/image/Rectangle 76.png',
+    'card_color' => getArtistCardColor(2),
   ],
   [
-    'id' => 0,
+    'id' => 3,
     'name' => 'Алиса Зайцева',
-    'specialty' => 'Цифровая живопись',
+    'specialty' => 'Художник',
     'avatar_path' => 'src/image/Ellipse 4.png',
-    'background_path' => 'src/image/Rectangle 78.png',
+    'card_color' => getArtistCardColor(3),
   ],
 ];
-
 try {
   $conn = new mysqli('MySQL-8.0', 'root', '');
   if (!$conn->connect_error) {
@@ -79,23 +94,50 @@ try {
         }
       }
 
-      $artistsSql = 'SELECT s.id AS service_id, s.category, s.image_path, u.id AS artist_id, u.name AS artist_name, u.avatar_path AS artist_avatar '
-        . 'FROM artist_services s '
-        . 'INNER JOIN users u ON u.phone = s.user_phone '
+      $artistsSql = 'SELECT u.id, u.name, u.phone, u.avatar_path '
+        . 'FROM users u '
         . 'WHERE u.role = "Художник" AND TRIM(COALESCE(u.name, "")) <> "" '
-        . 'ORDER BY s.id DESC '
+        . 'ORDER BY u.id DESC '
         . 'LIMIT 3';
       $artistsRes = $conn->query($artistsSql);
       if ($artistsRes !== false) {
         $loadedArtists = [];
         while ($artistRow = $artistsRes->fetch_assoc()) {
+          $artistId = (int) ($artistRow['id'] ?? 0);
+          $artistPhone = (string) ($artistRow['phone'] ?? '');
+          $specialty = 'Художник';
+
+          $categoryOrderSql = ' ORDER BY pc.category_id DESC';
+          $checkPcId = $conn->query("SHOW COLUMNS FROM profile_categories LIKE 'id'");
+          $checkPcCreatedAt = $conn->query("SHOW COLUMNS FROM profile_categories LIKE 'created_at'");
+          if ($checkPcId !== false && $checkPcId->num_rows > 0) {
+            $categoryOrderSql = ' ORDER BY pc.id DESC';
+          } elseif ($checkPcCreatedAt !== false && $checkPcCreatedAt->num_rows > 0) {
+            $categoryOrderSql = ' ORDER BY pc.created_at DESC';
+          }
+
+          $safeArtistPhone = $conn->real_escape_string($artistPhone);
+          $categorySql = 'SELECT c.categories AS category_name '
+            . 'FROM profile_categories pc '
+            . 'LEFT JOIN categories c ON c.id = pc.category_id '
+            . 'WHERE pc.profile_user_id = ' . $artistId . ' OR pc.user_phone = "' . $safeArtistPhone . '"'
+            . $categoryOrderSql
+            . ' LIMIT 1';
+          $categoryRes = $conn->query($categorySql);
+          if ($categoryRes !== false) {
+            $categoryRow = $categoryRes->fetch_assoc();
+            $categoryName = trim((string) ($categoryRow['category_name'] ?? ''));
+            if ($categoryName !== '') {
+              $specialty = $categoryName;
+            }
+          }
+
           $loadedArtists[] = [
-            'id' => (int) ($artistRow['artist_id'] ?? 0),
-            'service_id' => (int) ($artistRow['service_id'] ?? 0),
-            'name' => (string) ($artistRow['artist_name'] ?? ''),
-            'specialty' => trim((string) ($artistRow['category'] ?? '')) !== '' ? (string) $artistRow['category'] : 'Художник',
-            'avatar_path' => normalizeImagePath((string) ($artistRow['artist_avatar'] ?? ''), 'src/image/Ellipse 2.png'),
-            'background_path' => normalizeImagePath((string) ($artistRow['image_path'] ?? ''), 'src/image/Rectangle 55.png'),
+            'id' => $artistId,
+            'name' => (string) ($artistRow['name'] ?? 'Художник'),
+            'specialty' => $specialty,
+            'avatar_path' => normalizeImagePath((string) ($artistRow['avatar_path'] ?? ''), 'src/image/Ellipse 2.png'),
+            'card_color' => getArtistCardColor($artistId),
           ];
         }
 
@@ -240,10 +282,10 @@ try {
       <div class="row g-4 mb-4">
         <?php foreach ($homepageArtists as $artist): ?>
           <div class="col-lg-4 col-md-6">
-            <?php $artistCardHref = (int) ($artist['service_id'] ?? 0) > 0 ? 'order.php?service_id=' . (int) $artist['service_id'] : ((int) ($artist['id'] ?? 0) > 0 ? 'profile-artist.php?user_id=' . (int) $artist['id'] : '#'); ?>
+            <?php $artistCardHref = (int) ($artist['id'] ?? 0) > 0 ? 'profile-artist.php?user_id=' . (int) $artist['id'] : '#'; ?>
             <a href="<?php echo htmlspecialchars($artistCardHref, ENT_QUOTES, 'UTF-8'); ?>" class="text-decoration-none">
               <div class="artist-card">
-                <img src="<?php echo htmlspecialchars((string) ($artist['background_path'] ?? 'src/image/Rectangle 55.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Работа художника" class="artist-card-bg">
+                <div class="artist-card-bg" style="background-color: <?php echo htmlspecialchars((string) ($artist['card_color'] ?? '#f5c2c7'), ENT_QUOTES, 'UTF-8'); ?>;"></div>
                 <div class="artist-card-overlay">
                   <img src="<?php echo htmlspecialchars((string) ($artist['avatar_path'] ?? 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="artist-avatar">
                   <div class="artist-details">
@@ -258,7 +300,7 @@ try {
       </div>
 
       <div class="text-center">
-        <a class="btn btn-load-more" href="uslugi.php">Смотреть еще</a>
+        <a class="btn btn-load-more" href="login.php">Смотреть еще</a>
       </div>
     </div>
   </section>
