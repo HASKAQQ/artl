@@ -42,6 +42,17 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
     return $stmt;
 }
 
+function tableHasColumn(mysqli $conn, string $table, string $column): bool
+{
+    $tableEscaped = $conn->real_escape_string($table);
+    $result = $conn->query("SHOW COLUMNS FROM `{$tableEscaped}` LIKE '" . $conn->real_escape_string($column) . "'");
+    if ($result === false) {
+        return false;
+    }
+
+    return $result->num_rows > 0;
+}
+
 
 function redirectProfileArtistWithFlash(string $message): void
 {
@@ -408,6 +419,7 @@ $saveMessage = '';
 $errorMessage = '';
 $services = [];
 $artistOrders = [];
+$artistReviews = [];
 $portfolioWorks = [];
 $allCategories = [];
 $defaultCategories = [];
@@ -1008,6 +1020,27 @@ try {
         $artistOrders[] = $orderRow;
     }
 
+    if ($userId > 0 && tableHasColumn($conn, 'reviews', 'user_id') && tableHasColumn($conn, 'reviews', 'reviews')) {
+        $reviewColumns = [
+            'id',
+            'reviews',
+            tableHasColumn($conn, 'reviews', 'reviewer_name') ? 'reviewer_name' : 'NULL AS reviewer_name',
+            tableHasColumn($conn, 'reviews', 'reviewer_avatar_path') ? 'reviewer_avatar_path' : 'NULL AS reviewer_avatar_path',
+            tableHasColumn($conn, 'reviews', 'reviewer_role') ? 'reviewer_role' : 'NULL AS reviewer_role',
+        ];
+
+        $reviewsStmt = prepareOrFail(
+            $conn,
+            'SELECT ' . implode(', ', $reviewColumns) . ' FROM reviews WHERE user_id = ? ORDER BY id DESC'
+        );
+        $reviewsStmt->bind_param('i', $userId);
+        $reviewsStmt->execute();
+        $reviewsRes = $reviewsStmt->get_result();
+        while ($reviewRow = $reviewsRes->fetch_assoc()) {
+            $artistReviews[] = $reviewRow;
+        }
+    }
+
     $categoriesStmt = prepareOrFail($conn, 'SELECT MIN(id) AS id, TRIM(categories) AS categories, MAX(is_default) AS is_default, MAX(COALESCE(created_by_phone, "")) AS created_by_phone FROM categories WHERE TRIM(categories) <> "" AND TRIM(categories) <> "Все" GROUP BY TRIM(categories) ORDER BY MAX(is_default) DESC, TRIM(categories) ASC');
     $categoriesStmt->execute();
     $categoriesRes = $categoriesStmt->get_result();
@@ -1320,38 +1353,21 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
         </div>
         <div class="section-content" id="reviewsContent">
           <div class="reviews-list">
-            <div class="review-card">
-              <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Ермакова Мария</h4>
-                <p class="review-text">Большое спасибо! Выполнено все быстро качественно. Буду обращаться еще.</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Елько Александр</h4>
-                <p class="review-text">Большое спасибо!</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="src/image/Ellipse 3.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Строгая Наталья</h4>
-                <p class="review-text">Выполнено все быстро качественно. Буду обращаться еще.</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="src/image/Ellipse 4.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Лисицин Ванечка</h4>
-                <p class="review-text">СУПЕР КЛАСС ЛАЙК РЕСПЕКТ. ОЧЕНЬ КРУТО СДЕЛАЛА И НЕ ДОРОГО. БЕРИТЕ НЕ
-                  ПОЖАЛЕЕТЕ!!!!!!!!!!!</p>
-              </div>
-            </div>
+            <?php if (count($artistReviews) > 0): ?>
+              <?php foreach ($artistReviews as $review): ?>
+                <div class="review-card">
+                  <?php $reviewAvatar = normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'); ?>
+                  <img src="<?php echo htmlspecialchars($reviewAvatar, ENT_QUOTES, 'UTF-8'); ?>" alt="User" class="review-avatar">
+                  <div class="review-content">
+                    <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
+                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) $review['reviewer_role'] : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p class="text-white">Пока нет отзывов.</p>
+            <?php endif; ?>
           </div>
         </div>
       </div>

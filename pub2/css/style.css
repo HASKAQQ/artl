@@ -2966,3 +2966,10 @@ a.contact-link-btn.is-empty {
 .profile-section .review-card {
   background-color: #fff;
 }
+
+#ordersSection .section-header h2,
+#ordersSection .toggle-arrow,
+#reviewsSection .section-header h2,
+#reviewsSection .toggle-arrow {
+  color: #fff !important;
+}
