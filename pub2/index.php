@@ -85,7 +85,7 @@ try {
         . 'WHERE u.role = "Художник" AND TRIM(COALESCE(u.name, "")) <> "" '
         . 'GROUP BY u.id, u.name, u.avatar_path '
         . 'ORDER BY u.id DESC '
-        . 'LIMIT 6';
+        . 'LIMIT 3';
       $artistsRes = $conn->query($artistsSql);
       if ($artistsRes !== false) {
         $loadedArtists = [];
