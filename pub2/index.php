@@ -1,4 +1,28 @@
 <?php
+function normalizeImagePath(string $path, string $fallback): string
+{
+  $trimmed = trim($path);
+  if ($trimmed === '') {
+    return $fallback;
+  }
+
+  if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+    return $trimmed;
+  }
+
+  $normalized = str_replace('\\', '/', $trimmed);
+
+  if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+    $normalized = (string) $matches[1];
+  }
+
+  if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+    $normalized = (string) $matches[1];
+  }
+
+  return ltrim($normalized, '/');
+}
+
 $homepageCategories = [
   'Цифровая живопись',
   'Графический дизайн',
@@ -8,6 +32,30 @@ $homepageCategories = [
   'Скульптура и 3D-печать',
   'Каллиграфия и леттеринг',
   'Все',
+];
+
+$homepageArtists = [
+  [
+    'id' => 0,
+    'name' => 'Екатерина Кравчюк',
+    'specialty' => '3D-моделирование',
+    'avatar_path' => 'src/image/Ellipse 2.png',
+    'background_path' => 'src/image/Rectangle 55.png',
+  ],
+  [
+    'id' => 0,
+    'name' => 'Марина Рафт',
+    'specialty' => 'Иллюстрация',
+    'avatar_path' => 'src/image/Ellipse 3.png',
+    'background_path' => 'src/image/Rectangle 76.png',
+  ],
+  [
+    'id' => 0,
+    'name' => 'Алиса Зайцева',
+    'specialty' => 'Цифровая живопись',
+    'avatar_path' => 'src/image/Ellipse 4.png',
+    'background_path' => 'src/image/Rectangle 78.png',
+  ],
 ];
 
 try {
@@ -28,6 +76,31 @@ try {
         }
         if (count($loaded) > 0) {
           $homepageCategories = array_values($loaded);
+        }
+      }
+
+      $artistsSql = 'SELECT u.id, u.name, u.avatar_path, MAX(s.category) AS specialty, MAX(s.image_path) AS background_path '
+        . 'FROM users u '
+        . 'LEFT JOIN artist_services s ON s.user_phone = u.phone '
+        . 'WHERE u.role = "Художник" AND TRIM(COALESCE(u.name, "")) <> "" '
+        . 'GROUP BY u.id, u.name, u.avatar_path '
+        . 'ORDER BY u.id DESC '
+        . 'LIMIT 6';
+      $artistsRes = $conn->query($artistsSql);
+      if ($artistsRes !== false) {
+        $loadedArtists = [];
+        while ($artistRow = $artistsRes->fetch_assoc()) {
+          $loadedArtists[] = [
+            'id' => (int) ($artistRow['id'] ?? 0),
+            'name' => (string) ($artistRow['name'] ?? ''),
+            'specialty' => trim((string) ($artistRow['specialty'] ?? '')) !== '' ? (string) $artistRow['specialty'] : 'Художник',
+            'avatar_path' => normalizeImagePath((string) ($artistRow['avatar_path'] ?? ''), 'src/image/Ellipse 2.png'),
+            'background_path' => normalizeImagePath((string) ($artistRow['background_path'] ?? ''), 'src/image/Rectangle 55.png'),
+          ];
+        }
+
+        if (count($loadedArtists) > 0) {
+          $homepageArtists = $loadedArtists;
         }
       }
     }
@@ -165,44 +238,23 @@ try {
     <div class="container">
       <h2 class="artists-title mb-4">Художники</h2>
       <div class="row g-4 mb-4">
-        <div class="col-lg-4 col-md-6">
-          <div class="artist-card">
-            <img src="src/image/Rectangle 55.png" alt="Работа художника" class="artist-card-bg">
-            <div class="artist-card-overlay">
-              <img src="src/image/Ellipse 2.png" alt="Екатерина Кравчюк" class="artist-avatar">
-              <div class="artist-details">
-                <h3 class="artist-name">Екатерина Кравчюк</h3>
-                <p class="artist-specialty">3D-моделирование</p>
+        <?php foreach ($homepageArtists as $artist): ?>
+          <div class="col-lg-4 col-md-6">
+            <?php $artistCardHref = (int) ($artist['id'] ?? 0) > 0 ? 'profile-artist.php?user_id=' . (int) $artist['id'] : '#'; ?>
+            <a href="<?php echo htmlspecialchars($artistCardHref, ENT_QUOTES, 'UTF-8'); ?>" class="text-decoration-none">
+              <div class="artist-card">
+                <img src="<?php echo htmlspecialchars((string) ($artist['background_path'] ?? 'src/image/Rectangle 55.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Работа художника" class="artist-card-bg">
+                <div class="artist-card-overlay">
+                  <img src="<?php echo htmlspecialchars((string) ($artist['avatar_path'] ?? 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="artist-avatar">
+                  <div class="artist-details">
+                    <h3 class="artist-name"><?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></h3>
+                    <p class="artist-specialty"><?php echo htmlspecialchars((string) ($artist['specialty'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></p>
+                  </div>
+                </div>
               </div>
-            </div>
+            </a>
           </div>
-        </div>
-
-        <div class="col-lg-4 col-md-6">
-          <div class="artist-card">
-            <img src="src/image/Rectangle 76.png" alt="Работа художника" class="artist-card-bg">
-            <div class="artist-card-overlay">
-              <img src="src/image/Ellipse 3.png" alt="Марина Рафт" class="artist-avatar">
-              <div class="artist-details">
-                <h3 class="artist-name">Марина Рафт</h3>
-                <p class="artist-specialty">Иллюстрация</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-lg-4 col-md-6 d-none d-lg-block">
-          <div class="artist-card">
-            <img src="src/image/Rectangle 78.png" alt="Работа художника" class="artist-card-bg">
-            <div class="artist-card-overlay">
-              <img src="src/image/Ellipse 4.png" alt="Алиса Зайцева" class="artist-avatar">
-              <div class="artist-details">
-                <h3 class="artist-name">Алиса Зайцева</h3>
-                <p class="artist-specialty">Цифровая живопись</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <?php endforeach; ?>
       </div>
 
       <div class="text-center">
