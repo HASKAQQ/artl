@@ -17,38 +17,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
   } else {
     $mailTo = 'chudova0908@gmail.com';
     $mailSubject = 'Новая заявка с формы обратной связи ARTlance';
-    $mailBody = "Имя: {$feedbackName}
-"
-      . "Email: {$feedbackEmail}
-
-"
-      . "Сообщение:
-{$feedbackMessage}
-";
+    $mailBody = "Имя: {$feedbackName}\n"
+      . "Email: {$feedbackEmail}\n\n"
+      . "Сообщение:\n{$feedbackMessage}\n";
 
     $headers = [
       'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=UTF-8',
-      'From: ARTlance <noreply@artlance.local>',
+      'From: ARTlance <no-reply@artlance.local>',
       'Reply-To: ' . $feedbackEmail,
       'X-Mailer: PHP/' . phpversion(),
     ];
 
     $encodedSubject = '=?UTF-8?B?' . base64_encode($mailSubject) . '?=';
 
-    $mailSent = @mail($mailTo, $encodedSubject, $mailBody, implode("
-", $headers));
+    $mailError = '';
+    set_error_handler(static function (int $severity, string $message) use (&$mailError): bool {
+      $mailError = $message;
+      return true;
+    });
+
+    $mailSent = mail($mailTo, $encodedSubject, $mailBody, implode("\r\n", $headers));
+    restore_error_handler();
+
     if ($mailSent) {
       $feedbackSuccessMessage = 'Спасибо! Ваш запрос отправлен, мы свяжемся с вами.';
       $feedbackName = '';
       $feedbackEmail = '';
       $feedbackMessage = '';
     } else {
-      $feedbackErrorMessage = 'Не удалось отправить сообщение. Попробуйте позже.';
+      $feedbackErrorMessage = 'Не удалось отправить сообщение: на сервере не настроена почта (SMTP/sendmail) или отклонён адрес отправителя.';
+      if ($mailError !== '') {
+        $feedbackErrorMessage .= ' Детали: ' . $mailError;
+      }
     }
   }
 }
-
 $homepageCategories = [
   'Цифровая живопись',
   'Графический дизайн',
