@@ -40,14 +40,14 @@ function getArtistCardColor(int $artistId): string
 }
 
 $homepageCategories = [
-  'Цифровая живопись',
-  'Графический дизайн',
-  'Иллюстрация',
-  'Живопись и графика',
   '3D-моделирование и визуализация',
-  'Скульптура и 3D-печать',
+  'Графический дизайн',
+  'Живопись и графика',
+  'Иллюстрация',
   'Каллиграфия и леттеринг',
-  'Все',
+  'Скульптура и 3D-печать',
+  'Цифровая живопись',
+  'Прочее',
 ];
 
 $homepageArtists = [
@@ -78,21 +78,6 @@ try {
   if (!$conn->connect_error) {
     $conn->set_charset('utf8mb4');
     if ($conn->select_db('artlance')) {
-      $sql = 'SELECT TRIM(categories) AS categories, MAX(is_default) AS is_default FROM categories WHERE TRIM(categories) <> "" GROUP BY TRIM(categories) ORDER BY MAX(is_default) DESC, TRIM(categories) ASC';
-      $res = $conn->query($sql);
-      if ($res !== false) {
-        $loaded = [];
-        while ($row = $res->fetch_assoc()) {
-          $name = trim((string) ($row['categories'] ?? ''));
-          if ($name === '' || mb_strtolower($name) === 'прочее') {
-            continue;
-          }
-          $loaded[$name] = $name;
-        }
-        if (count($loaded) > 0) {
-          $homepageCategories = array_values($loaded);
-        }
-      }
 
       $artistsSql = 'SELECT u.id, u.name, u.phone, u.avatar_path '
         . 'FROM users u '
