@@ -79,23 +79,23 @@ try {
         }
       }
 
-      $artistsSql = 'SELECT u.id, u.name, u.avatar_path, MAX(s.category) AS specialty, MAX(s.image_path) AS background_path '
-        . 'FROM users u '
-        . 'LEFT JOIN artist_services s ON s.user_phone = u.phone '
+      $artistsSql = 'SELECT s.id AS service_id, s.category, s.image_path, u.id AS artist_id, u.name AS artist_name, u.avatar_path AS artist_avatar '
+        . 'FROM artist_services s '
+        . 'INNER JOIN users u ON u.phone = s.user_phone '
         . 'WHERE u.role = "Художник" AND TRIM(COALESCE(u.name, "")) <> "" '
-        . 'GROUP BY u.id, u.name, u.avatar_path '
-        . 'ORDER BY u.id DESC '
+        . 'ORDER BY s.id DESC '
         . 'LIMIT 3';
       $artistsRes = $conn->query($artistsSql);
       if ($artistsRes !== false) {
         $loadedArtists = [];
         while ($artistRow = $artistsRes->fetch_assoc()) {
           $loadedArtists[] = [
-            'id' => (int) ($artistRow['id'] ?? 0),
-            'name' => (string) ($artistRow['name'] ?? ''),
-            'specialty' => trim((string) ($artistRow['specialty'] ?? '')) !== '' ? (string) $artistRow['specialty'] : 'Художник',
-            'avatar_path' => normalizeImagePath((string) ($artistRow['avatar_path'] ?? ''), 'src/image/Ellipse 2.png'),
-            'background_path' => normalizeImagePath((string) ($artistRow['background_path'] ?? ''), 'src/image/Rectangle 55.png'),
+            'id' => (int) ($artistRow['artist_id'] ?? 0),
+            'service_id' => (int) ($artistRow['service_id'] ?? 0),
+            'name' => (string) ($artistRow['artist_name'] ?? ''),
+            'specialty' => trim((string) ($artistRow['category'] ?? '')) !== '' ? (string) $artistRow['category'] : 'Художник',
+            'avatar_path' => normalizeImagePath((string) ($artistRow['artist_avatar'] ?? ''), 'src/image/Ellipse 2.png'),
+            'background_path' => normalizeImagePath((string) ($artistRow['image_path'] ?? ''), 'src/image/Rectangle 55.png'),
           ];
         }
 
@@ -240,7 +240,7 @@ try {
       <div class="row g-4 mb-4">
         <?php foreach ($homepageArtists as $artist): ?>
           <div class="col-lg-4 col-md-6">
-            <?php $artistCardHref = (int) ($artist['id'] ?? 0) > 0 ? 'profile-artist.php?user_id=' . (int) $artist['id'] : '#'; ?>
+            <?php $artistCardHref = (int) ($artist['service_id'] ?? 0) > 0 ? 'order.php?service_id=' . (int) $artist['service_id'] : ((int) ($artist['id'] ?? 0) > 0 ? 'profile-artist.php?user_id=' . (int) $artist['id'] : '#'); ?>
             <a href="<?php echo htmlspecialchars($artistCardHref, ENT_QUOTES, 'UTF-8'); ?>" class="text-decoration-none">
               <div class="artist-card">
                 <img src="<?php echo htmlspecialchars((string) ($artist['background_path'] ?? 'src/image/Rectangle 55.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Работа художника" class="artist-card-bg">
