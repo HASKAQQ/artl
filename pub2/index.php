@@ -1,4 +1,54 @@
 <?php
+$feedbackSuccessMessage = '';
+$feedbackErrorMessage = '';
+$feedbackName = '';
+$feedbackEmail = '';
+$feedbackMessage = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'send_feedback') {
+  $feedbackName = trim((string) ($_POST['feedback_name'] ?? ''));
+  $feedbackEmail = trim((string) ($_POST['feedback_email'] ?? ''));
+  $feedbackMessage = trim((string) ($_POST['feedback_message'] ?? ''));
+
+  if ($feedbackName === '' || $feedbackEmail === '' || $feedbackMessage === '') {
+    $feedbackErrorMessage = 'Пожалуйста, заполните все поля формы.';
+  } elseif (!filter_var($feedbackEmail, FILTER_VALIDATE_EMAIL)) {
+    $feedbackErrorMessage = 'Введите корректный email.';
+  } else {
+    $mailTo = 'chudova0908@gmail.com';
+    $mailSubject = 'Новая заявка с формы обратной связи ARTlance';
+    $mailBody = "Имя: {$feedbackName}
+"
+      . "Email: {$feedbackEmail}
+
+"
+      . "Сообщение:
+{$feedbackMessage}
+";
+
+    $headers = [
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      'From: ARTlance <noreply@artlance.local>',
+      'Reply-To: ' . $feedbackEmail,
+      'X-Mailer: PHP/' . phpversion(),
+    ];
+
+    $encodedSubject = '=?UTF-8?B?' . base64_encode($mailSubject) . '?=';
+
+    $mailSent = @mail($mailTo, $encodedSubject, $mailBody, implode("
+", $headers));
+    if ($mailSent) {
+      $feedbackSuccessMessage = 'Спасибо! Ваш запрос отправлен, мы свяжемся с вами.';
+      $feedbackName = '';
+      $feedbackEmail = '';
+      $feedbackMessage = '';
+    } else {
+      $feedbackErrorMessage = 'Не удалось отправить сообщение. Попробуйте позже.';
+    }
+  }
+}
+
 $homepageCategories = [
   'Цифровая живопись',
   'Графический дизайн',
@@ -142,16 +192,23 @@ try {
 
   <!-- Контакты -->
   <section class="contacts py-5 position-relative">
-      <a name="contact"></a>
+      <a name="contact" id="contact"></a>
     <div class="container position-relative">
       <div class="row">
         <div class="col-lg-6">
           <h2 class="about-title mb-3">Обратная связь</h2>
           <p class="mb-4">Есть вопросы или не нашли то, что нужно?<br>Напишите нам!</p>
-          <form class="contacts-form">
-            <input type="text" placeholder="Имя" class="form-control mb-3">
-            <input type="email" placeholder="Электронная почта" class="form-control mb-3">
-            <input type="text" placeholder="Написать сообщение" class="form-control mb-3">
+          <?php if ($feedbackSuccessMessage !== ''): ?>
+            <div class="alert alert-success" role="alert"><?php echo htmlspecialchars($feedbackSuccessMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+          <?php endif; ?>
+          <?php if ($feedbackErrorMessage !== ''): ?>
+            <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($feedbackErrorMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+          <?php endif; ?>
+          <form class="contacts-form" method="post" action="#contact">
+            <input type="hidden" name="action" value="send_feedback">
+            <input type="text" name="feedback_name" placeholder="Имя" class="form-control mb-3" required maxlength="255" value="<?php echo htmlspecialchars($feedbackName, ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="email" name="feedback_email" placeholder="Электронная почта" class="form-control mb-3" required maxlength="255" value="<?php echo htmlspecialchars($feedbackEmail, ENT_QUOTES, 'UTF-8'); ?>">
+            <textarea name="feedback_message" placeholder="Написать сообщение" class="form-control mb-3" required rows="4" maxlength="2000"><?php echo htmlspecialchars($feedbackMessage, ENT_QUOTES, 'UTF-8'); ?></textarea>
             <button type="submit" class="btn btn-custom">Отправить</button>
           </form>
         </div>
