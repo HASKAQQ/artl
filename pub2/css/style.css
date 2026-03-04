@@ -2956,7 +2956,7 @@ a.contact-link-btn.is-empty {
 }
 
 
-/* profile: remove white backgrounds for orders and reviews sections/cards */
+/* profile: keep section transparent but cards/messages white */
 #ordersSection,
 #reviewsSection {
   background-color: transparent;
@@ -2964,5 +2964,5 @@ a.contact-link-btn.is-empty {
 
 .profile-section .order-card,
 .profile-section .review-card {
-  background-color: transparent;
+  background-color: #fff;
 }
