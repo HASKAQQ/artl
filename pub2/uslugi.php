@@ -271,7 +271,7 @@ try {
                     <h3 class="service-card-title"><?php echo htmlspecialchars($service['title'] !== '' ? $service['title'] : 'Услуга художника', ENT_QUOTES, 'UTF-8'); ?></h3>
                     <p class="service-card-category"><?php echo htmlspecialchars($service['category'] !== '' ? $service['category'] : 'Без категории', ENT_QUOTES, 'UTF-8'); ?></p>
                     <div class="service-card-bottom">
-                      <p class="service-card-price">от <?php echo number_format((float) $service['price'], 0, '.', ' '); ?>₽</p>
+                      <p class="service-card-price"><?php echo number_format((float) $service['price'], 0, '.', ' '); ?>₽</p>
                       <p class="service-card-time"><?php echo htmlspecialchars(formatTimeAgo($service['created_at']), ENT_QUOTES, 'UTF-8'); ?></p>
                     </div>
                   </div>

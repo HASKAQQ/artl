@@ -1504,7 +1504,9 @@ a.contact-link-btn.is-empty {
 }
 
 #portfolioSection,
-#servicesSection {
+#servicesSection,
+#ordersSection,
+#reviewsSection {
   background-color: #fff;
   border-radius: 5px;
 
@@ -2932,4 +2934,42 @@ a.contact-link-btn.is-empty {
     width: 60px;
     height: 60px;
   }
+}
+
+
+.order-status-readonly {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background-image: none !important;
+  padding-right: 12px;
+}
+
+
+.admin-user-profile-page .profile-section {
+  padding-bottom: 1px;
+}
+
+.admin-user-profile-page .section-collapsible:last-child {
+  margin-bottom: 0;
+}
+
+
+/* profile: keep section transparent but cards/messages white */
+#ordersSection,
+#reviewsSection {
+  background-color: transparent;
+}
+
+.profile-section .order-card,
+.profile-section .review-card {
+  background-color: #fff;
+}
+
+#ordersSection .section-header h2,
+#ordersSection .toggle-arrow,
+#reviewsSection .section-header h2,
+#reviewsSection .toggle-arrow {
+  color: #fff !important;
 }

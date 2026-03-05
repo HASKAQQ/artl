@@ -1,3 +1,48 @@
+<?php
+session_start();
+
+function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
+{
+    $stmt = $conn->prepare($sql);
+    if ($stmt === false) {
+        throw new RuntimeException('Ошибка SQL: ' . $conn->error);
+    }
+
+    return $stmt;
+}
+
+$orders = [];
+
+try {
+    $conn = new mysqli('MySQL-8.0', 'root', '');
+    if ($conn->connect_error) {
+        throw new RuntimeException('Не удалось подключиться к MySQL: ' . $conn->connect_error);
+    }
+
+    $conn->set_charset('utf8mb4');
+    if (!$conn->select_db('artlance')) {
+        throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
+    }
+
+    $ordersStmt = prepareOrFail(
+        $conn,
+        'SELECT ao.id, ao.service_title, ao.service_price, ao.status, ao.created_at,
+                COALESCE(NULLIF(TRIM(au.name), ""), ao.artist_phone) AS artist_name,
+                COALESCE(NULLIF(TRIM(bu.name), ""), ao.buyer_phone) AS buyer_name
+         FROM artist_orders ao
+         LEFT JOIN users au ON au.phone = ao.artist_phone
+         LEFT JOIN users bu ON bu.phone = ao.buyer_phone
+         ORDER BY ao.id DESC'
+    );
+    $ordersStmt->execute();
+    $ordersRes = $ordersStmt->get_result();
+    while ($row = $ordersRes->fetch_assoc()) {
+        $orders[] = $row;
+    }
+} catch (Throwable $e) {
+    $orders = [];
+}
+?>
 <!DOCTYPE html>
 <html lang="ru">
 
@@ -77,97 +122,24 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="">5322</td>
-                                <td>Название услуги</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>Екатерина Кравчюк</td>
-                                <td>30 000р</td>
-                                <td>В работе</td>
-                                <td>14.10.25</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-
+                            <?php if (count($orders) > 0): ?>
+                              <?php foreach ($orders as $order): ?>
+                                <?php $status = (string) ($order['status'] ?? 'paid'); ?>
+                                <?php $statusLabel = $status === 'in-progress' ? 'В работе' : ($status === 'completed' ? 'Завершено' : 'Оплачен'); ?>
+                                <tr class="align-middle">
+                                  <td scope=""><?php echo (int) ($order['id'] ?? 0); ?></td>
+                                  <td><?php echo htmlspecialchars((string) ($order['service_title'] ?? 'Услуга'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><?php echo htmlspecialchars((string) ($order['artist_name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><?php echo htmlspecialchars((string) ($order['buyer_name'] ?? 'Заказчик'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><?php echo number_format((float) ($order['service_price'] ?? 0), 0, '.', ' '); ?>р</td>
+                                  <td><?php echo htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><?php echo htmlspecialchars(date('d.m.y', strtotime((string) ($order['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
+                                  <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
+                                </tr>
+                              <?php endforeach; ?>
+                            <?php else: ?>
+                              <tr class="align-middle"><td colspan="8">Нет заказов.</td></tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>

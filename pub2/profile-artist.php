@@ -1,4 +1,29 @@
 <?php
+function normalizeImagePath(string $path, string $fallback): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+
+    if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    return ltrim($normalized, '/');
+}
+
+
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
     $stmt = $conn->prepare($sql);
@@ -147,7 +172,11 @@ try {
     }
 
     if (hasColumn($conn, 'reviews', 'user_id') && hasColumn($conn, 'reviews', 'reviews')) {
-        $reviewsStmt = prepareOrFail($conn, 'SELECT id, reviews FROM reviews WHERE user_id = ? ORDER BY id DESC');
+        $reviewColumns = ['id', 'reviews'];
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_name') ? 'reviewer_name' : 'NULL AS reviewer_name';
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_avatar_path') ? 'reviewer_avatar_path' : 'NULL AS reviewer_avatar_path';
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_role') ? 'reviewer_role' : 'NULL AS reviewer_role';
+        $reviewsStmt = prepareOrFail($conn, 'SELECT ' . implode(', ', $reviewColumns) . ' FROM reviews WHERE user_id = ? ORDER BY id DESC');
         $reviewsStmt->bind_param('i', $userId);
         $reviewsStmt->execute();
         $reviewsRes = $reviewsStmt->get_result();
@@ -161,7 +190,7 @@ try {
 
 $displayName = $user ? (string) ($user['name'] ?: 'Художник') : 'Профиль художника';
 $displayDate = $user ? date('d.m.Y', strtotime((string) ($user['registered_at'] ?? 'now'))) : '—';
-$avatarPath = $user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : 'src/image/Ellipse 2.png';
+$avatarPath = normalizeImagePath($user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : '', 'src/image/Ellipse 2.png');
 $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
 $vkHref = $userVk !== '' ? $userVk : '';
 ?>
@@ -204,7 +233,7 @@ $vkHref = $userVk !== '' ? $userVk : '';
         </div>
 
         <div class="profile-info col-8 col-lg-9">
-          <div class="d-flex align-items-center gap-3 mb-1">
+          <div class="profile-name-row mb-1">
             <h3 class="profile-name"><?php echo htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?></h3>
             <div class="profile-role-toggle">
               <button class="role-btn active" data-role="artist">Художник <img src="src/image/icons/icons8-кисть-100 1.svg" alt=""></button>
@@ -263,7 +292,7 @@ $vkHref = $userVk !== '' ? $userVk : '';
                       <h3 class="service-title"><?php echo htmlspecialchars((string) ($service['title'] ?? 'Услуга'), ENT_QUOTES, 'UTF-8'); ?></h3>
                       <p class="service-category"><?php echo htmlspecialchars((string) ($service['category'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></p>
                       <div class="service-bottom">
-                        <p class="service-price">от <?php echo htmlspecialchars((string) ($service['price'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?>р</p>
+                        <p class="service-price"><?php echo htmlspecialchars((string) ($service['price'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?>р</p>
                         <p class="service-time"><?php echo htmlspecialchars(formatTimeAgo((string) ($service['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
                       </div>
                     </div>
@@ -287,9 +316,11 @@ $vkHref = $userVk !== '' ? $userVk : '';
             <?php if (count($reviews) > 0): ?>
               <?php foreach ($reviews as $review): ?>
                 <div class="review-card">
-                  <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
+                  <?php $reviewAvatar = normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'); ?>
+                  <img src="<?php echo htmlspecialchars($reviewAvatar, ENT_QUOTES, 'UTF-8'); ?>" alt="User" class="review-avatar">
                   <div class="review-content">
-                    <h4 class="review-name">Отзыв #<?php echo (int) ($review['id'] ?? 0); ?></h4>
+                    <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
+                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) $review['reviewer_role'] : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
                     <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>

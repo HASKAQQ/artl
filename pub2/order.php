@@ -1,10 +1,19 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 $errorMessage = '';
 $serviceId = (int) ($_GET['service_id'] ?? 0);
 $service = null;
 $artist = null;
 $artistTags = [];
 $reviews = [];
+$orderSuccessMessage = '';
+$orderActionError = '';
+$reviewSuccessMessage = '';
+$reviewActionError = '';
+$canLeaveReview = false;
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -26,6 +35,92 @@ function hasColumn(mysqli $conn, string $table, string $column): bool
 
     $result = $conn->query("SHOW COLUMNS FROM {$safeTable} LIKE '{$safeColumn}'");
     return $result !== false && $result->num_rows > 0;
+}
+
+
+function normalizeImagePath(string $path, string $fallback): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+
+    if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    return ltrim($normalized, '/');
+}
+
+function ensureColumnExists(mysqli $conn, string $table, string $column, string $definition): void
+{
+    if (!hasColumn($conn, $table, $column)) {
+        $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+        $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
+        if ($safeTable !== '' && $safeColumn !== '') {
+            $conn->query("ALTER TABLE {$safeTable} ADD COLUMN {$safeColumn} {$definition}");
+        }
+    }
+}
+
+function ensureOrdersTable(mysqli $conn): void
+{
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            artist_user_id INT UNSIGNED DEFAULT NULL,
+            artist_phone VARCHAR(20) NOT NULL,
+            buyer_phone VARCHAR(20) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT "paid",
+            service_title VARCHAR(255) NOT NULL,
+            service_category VARCHAR(255) DEFAULT NULL,
+            service_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            service_image_path VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_artist_phone (artist_phone),
+            INDEX idx_buyer_phone (buyer_phone),
+            INDEX idx_service_id (service_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+}
+
+function ensureReviewsTable(mysqli $conn): void
+{
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS reviews (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            reviews TEXT NOT NULL,
+            reviewer_user_id INT UNSIGNED DEFAULT NULL,
+            reviewer_name VARCHAR(255) DEFAULT NULL,
+            reviewer_avatar_path VARCHAR(255) DEFAULT NULL,
+            reviewer_role VARCHAR(100) DEFAULT NULL,
+            service_id INT UNSIGNED DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_review_user_id (user_id),
+            INDEX idx_reviewer_user_id (reviewer_user_id),
+            INDEX idx_review_service_id (service_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    ensureColumnExists($conn, 'reviews', 'reviewer_user_id', 'INT UNSIGNED DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'reviewer_name', 'VARCHAR(255) DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'reviewer_avatar_path', 'VARCHAR(255) DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'reviewer_role', 'VARCHAR(100) DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'service_id', 'INT UNSIGNED DEFAULT NULL');
+    ensureColumnExists($conn, 'reviews', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
 }
 
 function formatTimeAgo(string $datetime): string
@@ -68,6 +163,9 @@ try {
         throw new RuntimeException('Не удалось выбрать базу artlance: ' . $conn->error);
     }
 
+    ensureOrdersTable($conn);
+    ensureReviewsTable($conn);
+
     $userColumns = ['u.id AS artist_user_id', 'u.name', 'u.avatar_path', 'u.phone'];
     $userColumns[] = hasColumn($conn, 'users', 'about') ? 'u.about' : 'NULL AS about';
     $userColumns[] = hasColumn($conn, 'users', 'social_vk') ? 'u.social_vk' : 'NULL AS social_vk';
@@ -102,6 +200,124 @@ try {
     $artistUserId = (int) ($service['artist_user_id'] ?? 0);
     $artistPhone = trim((string) ($service['user_phone'] ?? ''));
 
+    $viewerPhone = trim((string) ($_SESSION['user_phone'] ?? ''));
+    $viewerUserId = 0;
+    if ($viewerPhone !== '') {
+        $viewerStmt = prepareOrFail($conn, 'SELECT id FROM users WHERE phone = ? LIMIT 1');
+        $viewerStmt->bind_param('s', $viewerPhone);
+        $viewerStmt->execute();
+        $viewerRow = $viewerStmt->get_result()->fetch_assoc();
+        $viewerUserId = (int) ($viewerRow['id'] ?? 0);
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'buy_service') {
+        $buyerPhone = $viewerPhone;
+        if ($buyerPhone === '') {
+            $orderActionError = 'Чтобы оформить заказ, сначала войдите в аккаунт.';
+        } elseif ($artistPhone === '') {
+            $orderActionError = 'Не удалось определить художника для выбранной услуги.';
+        } elseif ($viewerUserId > 0 && $artistUserId > 0 && $viewerUserId === $artistUserId) {
+            $orderActionError = 'Нельзя оформить заказ на собственную услугу. Выберите услугу другого художника.';
+        } else {
+            $status = 'paid';
+            $serviceTitle = trim((string) ($service['title'] ?? 'Услуга художника'));
+            $serviceCategory = trim((string) ($service['category'] ?? ''));
+            $servicePrice = (float) ($service['price'] ?? 0);
+            $serviceImagePath = trim((string) ($service['image_path'] ?? ''));
+
+            $insertOrder = prepareOrFail(
+                $conn,
+                'INSERT INTO artist_orders (service_id, artist_user_id, artist_phone, buyer_phone, status, service_title, service_category, service_price, service_image_path)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $insertOrder->bind_param(
+                'iisssssds',
+                $serviceId,
+                $artistUserId,
+                $artistPhone,
+                $buyerPhone,
+                $status,
+                $serviceTitle,
+                $serviceCategory,
+                $servicePrice,
+                $serviceImagePath
+            );
+            $insertOrder->execute();
+            $orderSuccessMessage = 'Заказ оформлен. Художник увидит его в разделе «Заказы».';
+        }
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'leave_review') {
+        $buyerPhone = $viewerPhone;
+        $reviewText = trim((string) ($_POST['review_text'] ?? ''));
+
+        if ($buyerPhone === '') {
+            $reviewActionError = 'Чтобы оставить отзыв, сначала войдите в аккаунт.';
+        } elseif ($reviewText === '') {
+            $reviewActionError = 'Введите текст отзыва.';
+        } elseif ($artistUserId <= 0 || !hasColumn($conn, 'reviews', 'user_id') || !hasColumn($conn, 'reviews', 'reviews')) {
+            $reviewActionError = 'Сейчас оставить отзыв нельзя. Попробуйте позже.';
+        } else {
+            $purchaseCheckStmt = prepareOrFail(
+                $conn,
+                'SELECT id FROM artist_orders WHERE service_id = ? AND buyer_phone = ? LIMIT 1'
+            );
+            $purchaseCheckStmt->bind_param('is', $serviceId, $buyerPhone);
+            $purchaseCheckStmt->execute();
+            $purchaseExists = $purchaseCheckStmt->get_result()->fetch_assoc();
+
+            if (!$purchaseExists) {
+                $reviewActionError = 'Оставить отзыв можно только после покупки услуги.';
+            } else {
+                $reviewerInfoStmt = prepareOrFail(
+                    $conn,
+                    'SELECT id, name, avatar_path, role FROM users WHERE phone = ? LIMIT 1'
+                );
+                $reviewerInfoStmt->bind_param('s', $buyerPhone);
+                $reviewerInfoStmt->execute();
+                $reviewerInfo = $reviewerInfoStmt->get_result()->fetch_assoc() ?: [];
+
+                $reviewerUserId = (int) ($reviewerInfo['id'] ?? 0);
+                $reviewerName = trim((string) ($reviewerInfo['name'] ?? 'Пользователь'));
+                $reviewerAvatar = trim((string) ($reviewerInfo['avatar_path'] ?? ''));
+                $reviewerRole = trim((string) ($reviewerInfo['role'] ?? 'Пользователь'));
+
+                $hasReviewMetaColumns = hasColumn($conn, 'reviews', 'reviewer_user_id')
+                    && hasColumn($conn, 'reviews', 'reviewer_name')
+                    && hasColumn($conn, 'reviews', 'reviewer_avatar_path')
+                    && hasColumn($conn, 'reviews', 'reviewer_role')
+                    && hasColumn($conn, 'reviews', 'service_id');
+
+                if ($hasReviewMetaColumns) {
+                    $insertReviewStmt = prepareOrFail(
+                        $conn,
+                        'INSERT INTO reviews (user_id, reviews, reviewer_user_id, reviewer_name, reviewer_avatar_path, reviewer_role, service_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $insertReviewStmt->bind_param('isisssi', $artistUserId, $reviewText, $reviewerUserId, $reviewerName, $reviewerAvatar, $reviewerRole, $serviceId);
+                } else {
+                    $insertReviewStmt = prepareOrFail(
+                        $conn,
+                        'INSERT INTO reviews (user_id, reviews) VALUES (?, ?)'
+                    );
+                    $insertReviewStmt->bind_param('is', $artistUserId, $reviewText);
+                }
+
+                $insertReviewStmt->execute();
+                $reviewSuccessMessage = 'Спасибо! Ваш отзыв опубликован.';
+            }
+        }
+    }
+
+    if ($viewerPhone !== '') {
+        $canReviewStmt = prepareOrFail(
+            $conn,
+            'SELECT id FROM artist_orders WHERE service_id = ? AND buyer_phone = ? LIMIT 1'
+        );
+        $canReviewStmt->bind_param('is', $serviceId, $viewerPhone);
+        $canReviewStmt->execute();
+        $canLeaveReview = $canReviewStmt->get_result()->fetch_assoc() !== null;
+    }
+
     if ($artistUserId > 0 && hasColumn($conn, 'profile_categories', 'profile_user_id')) {
         $tagsStmt = prepareOrFail(
             $conn,
@@ -126,13 +342,19 @@ try {
     }
 
     if ($artistUserId > 0 && hasColumn($conn, 'reviews', 'user_id') && hasColumn($conn, 'reviews', 'reviews')) {
-        $reviewsStmt = prepareOrFail($conn, 'SELECT id, reviews FROM reviews WHERE user_id = ? ORDER BY id DESC LIMIT 6');
+        $reviewsColumns = ['id', 'reviews'];
+        $reviewsColumns[] = hasColumn($conn, 'reviews', 'reviewer_name') ? 'reviewer_name' : 'NULL AS reviewer_name';
+        $reviewsColumns[] = hasColumn($conn, 'reviews', 'reviewer_avatar_path') ? 'reviewer_avatar_path' : 'NULL AS reviewer_avatar_path';
+        $reviewsColumns[] = hasColumn($conn, 'reviews', 'reviewer_role') ? 'reviewer_role' : 'NULL AS reviewer_role';
+        $reviewsStmt = prepareOrFail($conn, 'SELECT ' . implode(', ', $reviewsColumns) . ' FROM reviews WHERE user_id = ? ORDER BY id DESC LIMIT 6');
         $reviewsStmt->bind_param('i', $artistUserId);
         $reviewsStmt->execute();
         $reviewsRes = $reviewsStmt->get_result();
         while ($review = $reviewsRes->fetch_assoc()) {
             $reviews[] = [
-                'name' => 'Пользователь',
+                'name' => trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : 'Пользователь',
+                'role' => trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) $review['reviewer_role'] : 'Пользователь',
+                'avatar_path' => normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'),
                 'text' => trim((string) ($review['reviews'] ?? '')),
             ];
         }
@@ -162,6 +384,22 @@ try {
         <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8'); ?></div>
       <?php endif; ?>
 
+      <?php if ($orderActionError !== ''): ?>
+        <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($orderActionError, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
+      <?php if ($orderSuccessMessage !== ''): ?>
+        <div class="alert alert-success mb-4"><?php echo htmlspecialchars($orderSuccessMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
+      <?php if ($reviewActionError !== ''): ?>
+        <div class="alert alert-danger mb-4"><?php echo htmlspecialchars($reviewActionError, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
+      <?php if ($reviewSuccessMessage !== ''): ?>
+        <div class="alert alert-success mb-4"><?php echo htmlspecialchars($reviewSuccessMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+      <?php endif; ?>
+
       <?php if ($errorMessage === '' && is_array($service)): ?>
       <div class="order-page-card">
         <div class="order-page-header">
@@ -180,7 +418,7 @@ try {
                 <a href="profile-artist.php?user_id=<?php echo (int) $artist['user_id']; ?>" class="text-decoration-none text-reset d-inline-block">
               <?php endif; ?>
                   <div class="order-page-avatar-wrapper">
-                    <img src="<?php echo htmlspecialchars(trim((string) ($artist['avatar_path'] ?? '')) !== '' ? (string) $artist['avatar_path'] : 'src/image/Ellipse 2.png', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="order-page-avatar">
+                    <img src="<?php echo htmlspecialchars(normalizeImagePath((string) ($artist['avatar_path'] ?? ''), 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?>" class="order-page-avatar">
                   </div>
 
                   <h2 class="order-page-artist-name"><?php echo htmlspecialchars((string) ($artist['name'] ?? 'Художник'), ENT_QUOTES, 'UTF-8'); ?></h2>
@@ -236,7 +474,11 @@ try {
           </div>
 
           <div class="order-page-buy-wrapper">
-            <button class="order-page-buy-btn" type="button">Купить</button>
+            <form method="post" class="m-0">
+              <input type="hidden" name="action" value="buy_service">
+              <input type="hidden" name="service_id" value="<?php echo (int) $serviceId; ?>">
+              <button class="order-page-buy-btn" type="submit">Купить</button>
+            </form>
           </div>
         </div>
       </div>
@@ -244,15 +486,28 @@ try {
       <div class="order-page-reviews">
         <div class="order-page-reviews-header">
           <h2 class="order-page-reviews-title">Отзывы</h2>
-          <button class="order-page-leave-review-btn" type="button">Оставить отзыв</button>
+          <?php if ($canLeaveReview): ?>
+            <button class="order-page-leave-review-btn" type="button" onclick="const f=document.getElementById('orderReviewForm'); if(f){f.style.display='block';}">Оставить отзыв</button>
+          <?php endif; ?>
         </div>
+
+        <?php if ($canLeaveReview): ?>
+          <form method="post" class="order-page-review-card mb-3" id="orderReviewForm" style="<?php echo ($reviewActionError !== '' || $reviewSuccessMessage !== '') ? 'display:block;' : 'display:none;'; ?>">
+            <div class="order-page-review-content w-100">
+              <input type="hidden" name="action" value="leave_review">
+              <textarea name="review_text" class="form-control mb-2" rows="3" maxlength="1000" placeholder="Напишите отзыв о работе художника..."></textarea>
+              <button class="order-page-buy-btn" type="submit" style="max-width:160px;padding:8px 16px;font-size:14px;">Отправить отзыв</button>
+            </div>
+          </form>
+        <?php endif; ?>
 
         <?php if (count($reviews) > 0): ?>
           <?php foreach ($reviews as $review): ?>
             <div class="order-page-review-card">
-              <div class="order-page-review-avatar-placeholder"></div>
+              <img src="<?php echo htmlspecialchars((string) ($review['avatar_path'] ?? 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="Аватар автора отзыва" class="review-avatar">
               <div class="order-page-review-content">
                 <h4 class="order-page-review-name"><?php echo htmlspecialchars((string) ($review['name'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></h4>
+                <p class="mb-1 text-muted"><?php echo htmlspecialchars((string) ($review['role'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></p>
                 <p class="order-page-review-text"><?php echo htmlspecialchars((string) ($review['text'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
               </div>
             </div>
