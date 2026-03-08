@@ -397,19 +397,17 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
           <span class="toggle-arrow" id="reviewsArrow">▼</span>
         </div>
         <div class="section-content" id="reviewsContent">
-          <div class="services-grid row g-3">
+          <div class="reviews-list">
             <?php if (count($reviews) > 0): ?>
               <?php foreach ($reviews as $review): ?>
-                <div class="col-12 col-lg-6">
-                  <div class="review-card h-100">
-                    <?php $reviewAvatar = normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'); ?>
-                    <img src="<?php echo htmlspecialchars($reviewAvatar, ENT_QUOTES, 'UTF-8'); ?>" alt="User" class="review-avatar">
-                    <div class="review-content">
-                      <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
-                      <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) ($review['reviewer_role']) : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
-                      <p class="mb-1 text-muted"><?php echo htmlspecialchars(formatTimeAgo((string) ($review['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
-                      <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
-                    </div>
+                <div class="review-card">
+                  <?php $reviewAvatar = normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'); ?>
+                  <img src="<?php echo htmlspecialchars($reviewAvatar, ENT_QUOTES, 'UTF-8'); ?>" alt="User" class="review-avatar">
+                  <div class="review-content">
+                    <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
+                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) ($review['reviewer_role']) : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(formatTimeAgo((string) ($review['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>
               <?php endforeach; ?>
