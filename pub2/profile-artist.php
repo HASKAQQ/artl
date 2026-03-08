@@ -176,7 +176,9 @@ try {
         $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_name') ? 'reviewer_name' : 'NULL AS reviewer_name';
         $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_avatar_path') ? 'reviewer_avatar_path' : 'NULL AS reviewer_avatar_path';
         $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_role') ? 'reviewer_role' : 'NULL AS reviewer_role';
-        $reviewsStmt = prepareOrFail($conn, 'SELECT ' . implode(', ', $reviewColumns) . ' FROM reviews WHERE user_id = ? ORDER BY id DESC');
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'created_at') ? 'created_at' : 'NULL AS created_at';
+        $reviewOrderBy = hasColumn($conn, 'reviews', 'created_at') ? 'created_at DESC, id DESC' : 'id DESC';
+        $reviewsStmt = prepareOrFail($conn, 'SELECT ' . implode(', ', $reviewColumns) . ' FROM reviews WHERE user_id = ? ORDER BY ' . $reviewOrderBy);
         $reviewsStmt->bind_param('i', $userId);
         $reviewsStmt->execute();
         $reviewsRes = $reviewsStmt->get_result();
@@ -321,6 +323,7 @@ $vkHref = $userVk !== '' ? $userVk : '';
                   <div class="review-content">
                     <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
                     <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) $review['reviewer_role'] : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(formatTimeAgo((string) ($review['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
                     <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>
