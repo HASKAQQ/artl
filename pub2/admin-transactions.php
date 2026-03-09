@@ -212,8 +212,6 @@ try {
                         </div>
                     </div>
                 <?php endforeach; ?>
-            <?php else: ?>
-                <p>Транзакций пока нет.</p>
             <?php endif; ?>
         </div>
     </div>
