@@ -69,8 +69,8 @@ try {
             $newCategory = trim((string) ($_POST['new_category'] ?? ''));
             if ($newCategory === '') {
                 $adminCategoryError = 'Введите название категории.';
-            } elseif (mb_strlen($newCategory) > 255) {
-                $adminCategoryError = 'Название категории слишком длинное.';
+            } elseif (mb_strlen($newCategory) > 30) {
+                $adminCategoryError = 'Название категории должно быть не длиннее 30 символов.';
             } else {
                 $findStmt = prepareOrFail($conn, 'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) LIMIT 1');
                 $findStmt->bind_param('s', $newCategory);
@@ -99,6 +99,8 @@ try {
             $newCategoryName = trim((string) ($_POST['edit_category_name'] ?? ''));
             if ($categoryId <= 0 || $newCategoryName === '') {
                 $adminCategoryError = 'Не удалось обновить категорию.';
+            } elseif (mb_strlen($newCategoryName) > 30) {
+                $adminCategoryError = 'Название категории должно быть не длиннее 30 символов.';
             } else {
                 $findStmt = prepareOrFail($conn, 'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) AND id <> ? LIMIT 1');
                 $findStmt->bind_param('si', $newCategoryName, $categoryId);
@@ -254,7 +256,7 @@ try {
                                         <form method="post" class="d-flex gap-2 flex-wrap align-items-center">
                                             <input type="hidden" name="category_action" value="save_edit">
                                             <input type="hidden" name="category_id" value="<?php echo (int) $category['id']; ?>">
-                                            <input type="text" class="form-control" style="max-width:360px;" name="edit_category_name" maxlength="255" value="<?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                            <input type="text" class="form-control" style="max-width:360px;" name="edit_category_name" maxlength="30" value="<?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>">
                                             <button type="submit" class="admin-btn">Сохранить</button>
                                             <a href="admin-main.php" class="admin-btn text-decoration-none" style="display:inline-flex;align-items:center;">Отмена</a>
                                         </form>
@@ -293,7 +295,7 @@ try {
                                 <td scope="row">
                                     <form method="post" class="d-flex gap-2 flex-wrap align-items-center">
                                         <input type="hidden" name="category_action" value="add">
-                                        <input type="text" name="new_category" class="form-control" style="max-width:360px;" placeholder="Новая категория" maxlength="255">
+                                        <input type="text" name="new_category" class="form-control" style="max-width:360px;" placeholder="Новая категория" maxlength="30">
                                         <button class="admin-btn" type="submit" name="add_category">Добавить категорию</button>
                                         <?php if ($adminCategoryError !== ''): ?>
                                             <span style="color:#c62828;font-weight:600;"><?php echo htmlspecialchars($adminCategoryError, ENT_QUOTES, 'UTF-8'); ?></span>
