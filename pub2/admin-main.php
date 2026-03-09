@@ -9,6 +9,7 @@ $adminCategoryError = '';
 $editingCategoryId = (int) ($_GET['edit_id'] ?? 0);
 $categoryCreatorUserIds = [];
 $adminReviews = [];
+$reviewSearchQuery = trim((string) ($_GET['review_q'] ?? ''));
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -190,24 +191,46 @@ try {
 
 
     if (hasColumn($conn, 'reviews', 'id') && hasColumn($conn, 'reviews', 'reviews') && hasColumn($conn, 'reviews', 'user_id')) {
+        $hasReviewerName = hasColumn($conn, 'reviews', 'reviewer_name');
+
         $reviewSql = 'SELECT r.id, r.reviews, '
-            . (hasColumn($conn, 'reviews', 'reviewer_name') ? 'r.reviewer_name' : 'NULL AS reviewer_name') . ', '
-            . (hasColumn($conn, 'reviews', 'reviewer_role') ? 'r.reviewer_role' : 'NULL AS reviewer_role') . ', '
-            . 'COALESCE(NULLIF(TRIM(u.name), ""), "Пользователь") AS artist_name '
+            . ($hasReviewerName ? 'r.reviewer_name' : 'NULL AS reviewer_name') . ' '
             . 'FROM reviews r '
-            . 'LEFT JOIN users u ON u.id = r.user_id '
-            . 'ORDER BY r.id DESC';
-        $reviewRes = $conn->query($reviewSql);
-        if ($reviewRes !== false) {
-            while ($reviewRow = $reviewRes->fetch_assoc()) {
-                $adminReviews[] = [
-                    'id' => (int) ($reviewRow['id'] ?? 0),
-                    'artist_name' => (string) ($reviewRow['artist_name'] ?? 'Пользователь'),
-                    'reviewer_name' => trim((string) ($reviewRow['reviewer_name'] ?? '')),
-                    'reviewer_role' => trim((string) ($reviewRow['reviewer_role'] ?? '')),
-                    'text' => (string) ($reviewRow['reviews'] ?? ''),
-                ];
+            . 'WHERE 1=1';
+
+        $types = '';
+        $params = [];
+
+        if ($reviewSearchQuery !== '') {
+            $reviewSql .= $hasReviewerName
+                ? ' AND (r.reviewer_name LIKE ? OR r.reviews LIKE ?)'
+                : ' AND r.reviews LIKE ?';
+            $searchLike = '%' . $reviewSearchQuery . '%';
+            if ($hasReviewerName) {
+                $types .= 'ss';
+                $params[] = $searchLike;
+                $params[] = $searchLike;
+            } else {
+                $types .= 's';
+                $params[] = $searchLike;
             }
+        }
+
+        $reviewSql .= ' ORDER BY r.id DESC';
+
+        $reviewStmt = prepareOrFail($conn, $reviewSql);
+        if ($types !== '') {
+            $reviewStmt->bind_param($types, ...$params);
+        }
+        $reviewStmt->execute();
+        $reviewRes = $reviewStmt->get_result();
+
+        while ($reviewRow = $reviewRes->fetch_assoc()) {
+            $adminReviews[] = [
+                'id' => (int) ($reviewRow['id'] ?? 0),
+                'reviewer_name' => trim((string) ($reviewRow['reviewer_name'] ?? '')),
+                'text' => (string) ($reviewRow['reviews'] ?? ''),
+            ];
         }
     }
 } catch (Throwable $e) {
@@ -359,9 +382,9 @@ try {
             </div>
             <div class="row">
                 <div class="col-6">
-                    <div class="admin-search-wrapper ">
-                        <input type="text" class="form-control admin-search-input" placeholder="Поиск художников">
-                        <button class="admin-search-btn">
+                    <form class="admin-search-wrapper" method="get">
+                        <input type="text" name="review_q" class="form-control admin-search-input" placeholder="Поиск по имени и тексту отзыва" value="<?php echo htmlspecialchars($reviewSearchQuery, ENT_QUOTES, 'UTF-8'); ?>">
+                        <button class="admin-search-btn" type="submit">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
                                 xmlns="http://www.w3.org/2000/svg">
                                 <path
@@ -369,7 +392,7 @@ try {
                                     stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
                         </button>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -388,13 +411,7 @@ try {
                                 <?php foreach ($adminReviews as $review): ?>
                                     <tr class="align-middle">
                                         <td scope="row">
-                                            <b><?php echo htmlspecialchars($review['artist_name'], ENT_QUOTES, 'UTF-8'); ?></b>
-                                            <?php if ($review['reviewer_name'] !== ''): ?>
-                                                — <?php echo htmlspecialchars($review['reviewer_name'], ENT_QUOTES, 'UTF-8'); ?>
-                                            <?php endif; ?>
-                                            <?php if ($review['reviewer_role'] !== ''): ?>
-                                                (<?php echo htmlspecialchars($review['reviewer_role'], ENT_QUOTES, 'UTF-8'); ?>)
-                                            <?php endif; ?>
+                                            <b><?php echo htmlspecialchars($review['reviewer_name'] !== '' ? $review['reviewer_name'] : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></b>
                                             <br>
                                             <?php echo htmlspecialchars($review['text'], ENT_QUOTES, 'UTF-8'); ?>
                                         </td>
