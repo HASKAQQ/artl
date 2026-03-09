@@ -8,6 +8,7 @@ $adminCategoryMessage = '';
 $adminCategoryError = '';
 $editingCategoryId = (int) ($_GET['edit_id'] ?? 0);
 $categoryCreatorUserIds = [];
+$adminReviews = [];
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -16,6 +17,17 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
         throw new RuntimeException('Ошибка SQL: ' . $conn->error);
     }
     return $stmt;
+}
+
+function hasColumn(mysqli $conn, string $table, string $column): bool
+{
+    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
+    if ($safeTable === '' || $safeColumn === '') {
+        return false;
+    }
+    $result = $conn->query("SHOW COLUMNS FROM {$safeTable} LIKE '{$safeColumn}'");
+    return $result !== false && $result->num_rows > 0;
 }
 
 try {
@@ -132,6 +144,16 @@ try {
                 $adminCategoryMessage = 'Категория удалена.';
             }
         }
+
+        if ($action === 'delete_review' && hasColumn($conn, 'reviews', 'id')) {
+            $reviewId = (int) ($_POST['review_id'] ?? 0);
+            if ($reviewId > 0) {
+                $deleteReviewStmt = prepareOrFail($conn, 'DELETE FROM reviews WHERE id = ? LIMIT 1');
+                $deleteReviewStmt->bind_param('i', $reviewId);
+                $deleteReviewStmt->execute();
+                $adminCategoryMessage = 'Отзыв удалён.';
+            }
+        }
     }
 
     $conn->query(
@@ -163,6 +185,29 @@ try {
                 'created_by_phone' => $createdByPhone,
                 'creator_user_id' => $creatorUserId,
             ];
+        }
+    }
+
+
+    if (hasColumn($conn, 'reviews', 'id') && hasColumn($conn, 'reviews', 'reviews') && hasColumn($conn, 'reviews', 'user_id')) {
+        $reviewSql = 'SELECT r.id, r.reviews, '
+            . (hasColumn($conn, 'reviews', 'reviewer_name') ? 'r.reviewer_name' : 'NULL AS reviewer_name') . ', '
+            . (hasColumn($conn, 'reviews', 'reviewer_role') ? 'r.reviewer_role' : 'NULL AS reviewer_role') . ', '
+            . 'COALESCE(NULLIF(TRIM(u.name), ""), "Пользователь") AS artist_name '
+            . 'FROM reviews r '
+            . 'LEFT JOIN users u ON u.id = r.user_id '
+            . 'ORDER BY r.id DESC';
+        $reviewRes = $conn->query($reviewSql);
+        if ($reviewRes !== false) {
+            while ($reviewRow = $reviewRes->fetch_assoc()) {
+                $adminReviews[] = [
+                    'id' => (int) ($reviewRow['id'] ?? 0),
+                    'artist_name' => (string) ($reviewRow['artist_name'] ?? 'Пользователь'),
+                    'reviewer_name' => trim((string) ($reviewRow['reviewer_name'] ?? '')),
+                    'reviewer_role' => trim((string) ($reviewRow['reviewer_role'] ?? '')),
+                    'text' => (string) ($reviewRow['reviews'] ?? ''),
+                ];
+            }
         }
     }
 } catch (Throwable $e) {
@@ -339,34 +384,37 @@ try {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr class="align-middle">
-                                <td scope="row">Цифровая живопись</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Графический дизайн</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Иллюстрация</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Живопись и графика</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">3D-моделирование и визуализация</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Скульптура и 3D-печать</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Каллиграфия и леттеринг</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
+                            <?php if (count($adminReviews) > 0): ?>
+                                <?php foreach ($adminReviews as $review): ?>
+                                    <tr class="align-middle">
+                                        <td scope="row">
+                                            <b><?php echo htmlspecialchars($review['artist_name'], ENT_QUOTES, 'UTF-8'); ?></b>
+                                            <?php if ($review['reviewer_name'] !== ''): ?>
+                                                — <?php echo htmlspecialchars($review['reviewer_name'], ENT_QUOTES, 'UTF-8'); ?>
+                                            <?php endif; ?>
+                                            <?php if ($review['reviewer_role'] !== ''): ?>
+                                                (<?php echo htmlspecialchars($review['reviewer_role'], ENT_QUOTES, 'UTF-8'); ?>)
+                                            <?php endif; ?>
+                                            <br>
+                                            <?php echo htmlspecialchars($review['text'], ENT_QUOTES, 'UTF-8'); ?>
+                                        </td>
+                                        <td>
+                                            <form method="post" onsubmit="return confirm('Удалить отзыв?');">
+                                                <input type="hidden" name="category_action" value="delete_review">
+                                                <input type="hidden" name="review_id" value="<?php echo (int) $review['id']; ?>">
+                                                <button type="submit" style="background:transparent;border:none;padding:0;">
+                                                    <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="">
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr class="align-middle">
+                                    <td scope="row">Отзывов пока нет.</td>
+                                    <td>—</td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
