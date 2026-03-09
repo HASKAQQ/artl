@@ -406,7 +406,6 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
                   <div class="review-content">
                     <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
                     <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) ($review['reviewer_role']) : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
-                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(formatTimeAgo((string) ($review['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
                     <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>
