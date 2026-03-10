@@ -2188,8 +2188,11 @@ a.contact-link-btn.is-empty {
 }
 
 
-.admin-review-alert-slot {
-  min-height: 86px;
+
+.admin-review-alert-wrap {
+  margin-top: 34px;
+  margin-bottom: 34px;
+  max-width: 760px;
 }
 
 .admin-nav {

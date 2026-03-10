@@ -339,13 +339,11 @@ try {
         </div>
     </div>
     <div class="admin">
-        <div class="admin-review-alert-slot">
-            <?php if ($adminReviewDeleteMessage !== ''): ?>
-                <div class="container mt-4 pt-2">
-                    <div class="alert alert-danger mb-0"><?php echo htmlspecialchars($adminReviewDeleteMessage, ENT_QUOTES, 'UTF-8'); ?></div>
-                </div>
-            <?php endif; ?>
-        </div>
+        <?php if ($adminReviewDeleteMessage !== ''): ?>
+            <div class="container admin-review-alert-wrap">
+                <div class="alert alert-danger mb-0 text-center"><?php echo htmlspecialchars($adminReviewDeleteMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+            </div>
+        <?php endif; ?>
         <div class="container adm-cont">
             <div class="row justify-content-between">
                 <div class="col-5">
