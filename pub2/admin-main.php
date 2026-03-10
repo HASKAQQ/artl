@@ -16,6 +16,7 @@ $totalClientsCount = 0;
 $totalOrdersCount = 0;
 $inProgressOrdersCount = 0;
 $completedOrdersCount = 0;
+$adminReviewDeleteMessage = '';
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -178,7 +179,7 @@ try {
                 $deleteReviewStmt = prepareOrFail($conn, 'DELETE FROM reviews WHERE id = ? LIMIT 1');
                 $deleteReviewStmt->bind_param('i', $reviewId);
                 $deleteReviewStmt->execute();
-                $adminCategoryMessage = 'Отзыв удалён.';
+                $adminReviewDeleteMessage = 'Отзыв удален.';
             }
         }
     }
@@ -338,6 +339,11 @@ try {
         </div>
     </div>
     <div class="admin">
+        <?php if ($adminReviewDeleteMessage !== ''): ?>
+            <div class="container mt-3">
+                <div class="alert alert-danger mb-0"><?php echo htmlspecialchars($adminReviewDeleteMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+            </div>
+        <?php endif; ?>
         <div class="container adm-cont">
             <div class="row justify-content-between">
                 <div class="col-5">
