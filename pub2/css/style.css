@@ -2184,7 +2184,12 @@ a.contact-link-btn.is-empty {
 .admin {
   min-height: 100vh;
   background-color: #E4E3E3;
-  padding-bottom: 5vh;
+  padding-bottom: 0;
+}
+
+
+.admin-review-alert-slot {
+  min-height: 86px;
 }
 
 .admin-nav {
