@@ -10,6 +10,12 @@ $editingCategoryId = (int) ($_GET['edit_id'] ?? 0);
 $categoryCreatorUserIds = [];
 $adminReviews = [];
 $reviewSearchQuery = trim((string) ($_GET['review_q'] ?? ''));
+$totalUsersCount = 0;
+$totalArtistsCount = 0;
+$totalClientsCount = 0;
+$totalOrdersCount = 0;
+$inProgressOrdersCount = 0;
+$completedOrdersCount = 0;
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -49,6 +55,26 @@ try {
             is_default TINYINT(1) NOT NULL DEFAULT 1,
             created_by_phone VARCHAR(20) DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            artist_user_id INT UNSIGNED DEFAULT NULL,
+            artist_phone VARCHAR(20) NOT NULL,
+            buyer_phone VARCHAR(20) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT "paid",
+            service_title VARCHAR(255) NOT NULL,
+            service_category VARCHAR(255) DEFAULT NULL,
+            service_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            service_image_path VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_artist_phone (artist_phone),
+            INDEX idx_buyer_phone (buyer_phone),
+            INDEX idx_service_id (service_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
@@ -174,6 +200,34 @@ try {
         }
     }
 
+    $userStatsRes = $conn->query(
+        'SELECT
+            COUNT(*) AS total_users,
+            SUM(CASE WHEN role = "Художник" THEN 1 ELSE 0 END) AS total_artists,
+            SUM(CASE WHEN role = "Заказчик" THEN 1 ELSE 0 END) AS total_clients
+         FROM users'
+    );
+    if ($userStatsRes !== false) {
+        $userStats = $userStatsRes->fetch_assoc();
+        $totalUsersCount = (int) ($userStats['total_users'] ?? 0);
+        $totalArtistsCount = (int) ($userStats['total_artists'] ?? 0);
+        $totalClientsCount = (int) ($userStats['total_clients'] ?? 0);
+    }
+
+    $orderStatsRes = $conn->query(
+        'SELECT
+            COUNT(*) AS total_orders,
+            SUM(CASE WHEN LOWER(TRIM(status)) IN ("in_progress", "в работе", "в_работе") THEN 1 ELSE 0 END) AS in_progress_orders,
+            SUM(CASE WHEN LOWER(TRIM(status)) IN ("completed", "завершено") THEN 1 ELSE 0 END) AS completed_orders
+         FROM artist_orders'
+    );
+    if ($orderStatsRes !== false) {
+        $orderStats = $orderStatsRes->fetch_assoc();
+        $totalOrdersCount = (int) ($orderStats['total_orders'] ?? 0);
+        $inProgressOrdersCount = (int) ($orderStats['in_progress_orders'] ?? 0);
+        $completedOrdersCount = (int) ($orderStats['completed_orders'] ?? 0);
+    }
+
     $categoriesRes = $conn->query('SELECT id, TRIM(categories) AS categories, is_default, created_by_phone FROM categories WHERE TRIM(categories) <> "" ORDER BY is_default DESC, categories ASC');
     if ($categoriesRes !== false) {
         while ($row = $categoriesRes->fetch_assoc()) {
@@ -289,16 +343,18 @@ try {
                 <div class="col-5">
                     <div class="main-admi-info">
                         <h2 class="admin-info-title">Всего пользователей:</h2>
-                        <p class="admin-info-text">Художников: <span>42</span></p>
-                        <p class="admin-info-text">Заказчиков: <span>42</span></p>
+                        <p class="admin-info-text">Пользователей: <span><?php echo (int) $totalUsersCount; ?></span></p>
+                        <p class="admin-info-text">Художников: <span><?php echo (int) $totalArtistsCount; ?></span></p>
+                        <p class="admin-info-text">Заказчиков: <span><?php echo (int) $totalClientsCount; ?></span></p>
                     </div>
                 </div>
 
                 <div class="col-5">
                     <div class="main-admi-info">
                         <h2 class="admin-info-title">Активных заказов:</h2>
-                        <p class="admin-info-text">В работе: <span>42</span></p>
-                        <p class="admin-info-text">Завершено: <span>42</span></p>
+                        <p class="admin-info-text">Всего создано: <span><?php echo (int) $totalOrdersCount; ?></span></p>
+                        <p class="admin-info-text">В работе: <span><?php echo (int) $inProgressOrdersCount; ?></span></p>
+                        <p class="admin-info-text">Завершено: <span><?php echo (int) $completedOrdersCount; ?></span></p>
                     </div>
                 </div>
 
@@ -419,7 +475,8 @@ try {
                                             <form method="post" onsubmit="return confirm('Удалить отзыв?');">
                                                 <input type="hidden" name="category_action" value="delete_review">
                                                 <input type="hidden" name="review_id" value="<?php echo (int) $review['id']; ?>">
-                                                <button type="submit" style="background:transparent;border:none;padding:0;">
+                                                <input type="hidden" name="review_q" value="<?php echo htmlspecialchars($reviewSearchQuery, ENT_QUOTES, "UTF-8"); ?>">
+                                                <button type="submit" title="Удалить отзыв" style="background:transparent;border:none;padding:0;">
                                                     <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="">
                                                 </button>
                                             </form>
