@@ -340,7 +340,7 @@ try {
     </div>
     <div class="admin">
         <?php if ($adminReviewDeleteMessage !== ''): ?>
-            <div class="container mt-3">
+            <div class="container mt-4 pt-2">
                 <div class="alert alert-danger mb-0"><?php echo htmlspecialchars($adminReviewDeleteMessage, ENT_QUOTES, 'UTF-8'); ?></div>
             </div>
         <?php endif; ?>
