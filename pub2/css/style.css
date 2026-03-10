@@ -2189,10 +2189,11 @@ a.contact-link-btn.is-empty {
 
 
 
-.admin-review-alert-wrap {
-  margin-top: 34px;
-  margin-bottom: 34px;
-  max-width: 760px;
+.admin-review-alert-inline {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  text-align: left;
+  width: 100%;
 }
 
 .admin-nav {

@@ -339,11 +339,6 @@ try {
         </div>
     </div>
     <div class="admin">
-        <?php if ($adminReviewDeleteMessage !== ''): ?>
-            <div class="container admin-review-alert-wrap">
-                <div class="alert alert-danger mb-0 text-center"><?php echo htmlspecialchars($adminReviewDeleteMessage, ENT_QUOTES, 'UTF-8'); ?></div>
-            </div>
-        <?php endif; ?>
         <div class="container adm-cont">
             <div class="row justify-content-between">
                 <div class="col-5">
@@ -457,6 +452,14 @@ try {
                     </form>
                 </div>
             </div>
+
+            <?php if ($adminReviewDeleteMessage !== ''): ?>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="alert alert-danger admin-review-alert-inline mb-0"><?php echo htmlspecialchars($adminReviewDeleteMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="container adm-cont-table">
             <div class="row">
