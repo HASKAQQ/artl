@@ -13,7 +13,22 @@ function normalizeImagePath(string $path, string $fallback): string
         return $fallback;
     }
 
-    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+    if (str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed)) {
+        $urlPath = (string) (parse_url($trimmed, PHP_URL_PATH) ?? '');
+        $normalizedUrlPath = str_replace('\\', '/', $urlPath);
+
+        if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalizedUrlPath, $matches)) {
+            return ltrim((string) $matches[1], '/');
+        }
+
+        if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalizedUrlPath, $matches)) {
+            return ltrim((string) $matches[1], '/');
+        }
+
         return $trimmed;
     }
 
