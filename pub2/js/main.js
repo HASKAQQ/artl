@@ -239,8 +239,18 @@ let answers = document.querySelectorAll('.answer');
 if (questions.length > 0 && answers.length > 0) {
   questions.forEach((question, index) => {
     question.onclick = () => {
-      questions[index].classList.toggle('active');
-      answers[index].classList.toggle('active');
+      const isActive = question.classList.toggle('active');
+      const answer = answers[index];
+
+      answer.classList.toggle('active', isActive);
+      question.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+      answer.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+
+      if (isActive) {
+        answer.style.maxHeight = `${answer.scrollHeight}px`;
+      } else {
+        answer.style.maxHeight = '0px';
+      }
     };
   });
 }

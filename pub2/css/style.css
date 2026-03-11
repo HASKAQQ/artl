@@ -2020,39 +2020,56 @@ a.contact-link-btn.is-empty {
 
 .qna-section {
   min-height: 100vh;
-  padding-top: 75px;
+  padding: 48px 0 60px;
 }
 
 .qna-section-title {
   font-weight: 900;
   font-size: 34px;
-  margin-bottom: 22px;
+  margin-bottom: 28px;
+}
+
+.qna-line {
+  margin-bottom: 12px;
 }
 
 .question {
-  border: 2px solid #000000;
+  border: 2px solid #000;
   border-radius: 5px;
   display: flex;
   justify-content: space-between;
-  padding: 20px 40px;
+  width: 100%;
+  background: #fff;
+  padding: 20px 24px;
   align-items: center;
   cursor: pointer;
 }
 
 .question-title {
-  font-weight: 500;
-  font-size: 20px;
-  line-height: 100%;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.25;
+  text-align: left;
 }
 
 .answer {
-  display: none;
-  border: 2px solid #000000;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 2px solid #000;
+  border-top: none;
   border-radius: 0 0 5px 5px;
-  justify-content: space-between;
-  padding: 20px 40px;
-  align-items: center;
-  cursor: pointer;
+  padding: 0 24px;
+  transition: max-height .3s ease, opacity .25s ease, padding .25s ease;
+}
+
+.answer p {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.5;
+  padding-bottom: 18px;
 }
 
 .question-btn {
@@ -2062,15 +2079,16 @@ a.contact-link-btn.is-empty {
 .question.active {
   border-bottom: none;
   border-radius: 5px 5px 0 0;
+}
 
-  .question-btn {
-    transform: rotate(45deg);
-  }
+.question.active .question-btn {
+  transform: rotate(45deg);
 }
 
 .answer.active {
-  display: flex;
-  border-top: none;
+  max-height: 220px;
+  opacity: 1;
+  padding-top: 16px;
 }
 
 @media (max-width: 991px) {
