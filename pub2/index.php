@@ -39,6 +39,14 @@ function getArtistCardColor(int $artistId): string
   return $palette[$artistId % count($palette)];
 }
 
+
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
+
+$isUserLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true;
+$artistsPageLink = $isUserLoggedIn ? 'artists.php' : 'login.php';
+
 $homepageCategories = [
   '3D-моделирование и визуализация',
   'Графический дизайн',
@@ -156,7 +164,7 @@ try {
       <div class="row align-items-center py-5">
         <div class="col-lg-6">
           <h1 class="banner-title">Найдите <span class="fw-black">ИДЕАЛЬНОГО</span> художника для вашего шедевра за 5 минут</h1>
-          <a class="btn btn-custom mt-4" href="login.php">Найти</a>
+          <a class="btn btn-custom mt-4" href="<?php echo htmlspecialchars($artistsPageLink, ENT_QUOTES, 'UTF-8'); ?>">Найти</a>
         </div>
         <div class="col-lg-6 position-relative d-none d-lg-block">
           <div class="banner-spacer-desktop"></div>
@@ -285,7 +293,7 @@ try {
       </div>
 
       <div class="text-center">
-        <a class="btn btn-load-more" href="login.php">Смотреть еще</a>
+        <a class="btn btn-load-more" href="<?php echo htmlspecialchars($artistsPageLink, ENT_QUOTES, 'UTF-8'); ?>">Смотреть еще</a>
       </div>
     </div>
   </section>
