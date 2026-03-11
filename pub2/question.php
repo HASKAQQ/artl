@@ -16,7 +16,7 @@
 <?php include 'header.php'; ?>
 
     <section class="qna-section">
-        <div class="container">
+        <div class="container-fluid qna-container">
             <h1 class="qna-section-title">Ответы на частые вопросы</h1>
 
             <div class="qna-line">

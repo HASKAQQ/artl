@@ -393,6 +393,11 @@ body {
 
 /* Адаптивность */
 @media (max-width: 991px) {
+  .qna-container {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
   .banner-title {
     font-size: 28px;
   }
@@ -2023,6 +2028,13 @@ a.contact-link-btn.is-empty {
   padding: 48px 0 60px;
 }
 
+.qna-container {
+  width: 100%;
+  max-width: 100%;
+  padding-left: 36px;
+  padding-right: 36px;
+}
+
 .qna-section-title {
   font-weight: 900;
   font-size: 34px;
@@ -2031,6 +2043,7 @@ a.contact-link-btn.is-empty {
 
 .qna-line {
   margin-bottom: 12px;
+  width: 100%;
 }
 
 .question {
@@ -2039,8 +2052,9 @@ a.contact-link-btn.is-empty {
   display: flex;
   justify-content: space-between;
   width: 100%;
+  min-height: 86px;
   background: #fff;
-  padding: 20px 24px;
+  padding: 18px 24px;
   align-items: center;
   cursor: pointer;
 }
@@ -2048,7 +2062,7 @@ a.contact-link-btn.is-empty {
 .question-title {
   font-weight: 700;
   font-size: 22px;
-  line-height: 1.25;
+  line-height: 1.2;
   text-align: left;
 }
 
@@ -2086,7 +2100,7 @@ a.contact-link-btn.is-empty {
 }
 
 .answer.active {
-  max-height: 220px;
+  max-height: 520px;
   opacity: 1;
   padding-top: 16px;
 }
