@@ -3034,3 +3034,157 @@ a.contact-link-btn.is-empty {
 #reviewsSection .toggle-arrow {
   color: #fff !important;
 }
+
+/* ===== Mobile 400px alignment (Figma-like baseline) ===== */
+@media (max-width: 430px) {
+  .container,
+  .container-fluid {
+    max-width: 400px;
+    padding-left: 18px;
+    padding-right: 18px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Главная */
+  .banner-title {
+    font-size: 42px;
+    line-height: 1.1;
+  }
+
+  .btn-load-more,
+  .btn-custom {
+    border-radius: 8px;
+  }
+
+  .artists .artist-card {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  /* Профили */
+  .profile-card {
+    padding: 16px 0 0 0;
+  }
+
+  .profile-avatar-wrapper {
+    width: 110px;
+    height: 110px;
+    margin-left: 0;
+  }
+
+  .profile-name {
+    font-size: 34px;
+    width: auto;
+  }
+
+  .profile-tags {
+    gap: 6px;
+  }
+
+  .profile-tag {
+    font-size: 14px;
+    padding: 6px 10px;
+  }
+
+  .section-header h2 {
+    font-size: 36px;
+  }
+
+  .order-card,
+  .review-card {
+    border-radius: 8px;
+  }
+
+  /* Страница заказа */
+  .order-page-section {
+    padding: 0 0 48px;
+  }
+
+  .order-page-card {
+    padding: 24px 18px;
+    border-radius: 0;
+  }
+
+  .order-page-title {
+    font-size: 34px;
+    line-height: 1.15;
+  }
+
+  .order-page-reviews-title {
+    font-size: 36px;
+  }
+
+  /* Админка: как в мобильных макетах */
+  .admin {
+    padding-bottom: 24px;
+  }
+
+  .admin .adm-cont .row {
+    gap: 12px;
+  }
+
+  .admin .adm-cont .col-5,
+  .admin .adm-cont .col-6,
+  .admin .adm-cont .col-12 {
+    width: 100%;
+  }
+
+  .main-admi-info {
+    margin-top: 0;
+    padding: 18px 14px;
+    border-radius: 8px;
+  }
+
+  .admin-info-title {
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
+
+  .admin-info-text {
+    font-size: 14px;
+    margin-top: 10px;
+  }
+
+  .adm-cont-table .table {
+    margin: 16px 0;
+  }
+
+  .adm-cont-table th,
+  .adm-cont-table td {
+    font-size: 12px !important;
+    padding: 10px 8px !important;
+  }
+
+  .adm-cont-table th:first-child,
+  .adm-cont-table td:first-child {
+    font-size: 14px !important;
+    padding-left: 10px !important;
+  }
+
+  /* Мобильные карточки пользователей в админке */
+  .container.mob .id {
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .adm-id-menu {
+    border-radius: 0 0 8px 8px;
+    padding: 14px;
+  }
+
+  .adm-id-menu-line {
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .adm-id-info {
+    text-align: right;
+    font-size: 16px;
+  }
+
+  .adm-name {
+    font-size: 16px;
+  }
+}
