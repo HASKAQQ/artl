@@ -7,6 +7,31 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
     exit;
 }
 
+function normalizeImagePath(string $path, string $fallback): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+
+    if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    return ltrim($normalized, '/');
+}
+
+
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
     $stmt = $conn->prepare($sql);
@@ -15,6 +40,17 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
     }
 
     return $stmt;
+}
+
+function tableHasColumn(mysqli $conn, string $table, string $column): bool
+{
+    $tableEscaped = $conn->real_escape_string($table);
+    $result = $conn->query("SHOW COLUMNS FROM `{$tableEscaped}` LIKE '" . $conn->real_escape_string($column) . "'");
+    if ($result === false) {
+        return false;
+    }
+
+    return $result->num_rows > 0;
 }
 
 
@@ -43,6 +79,31 @@ function parsePositiveIntList(string $raw): array
     }
 
     return array_values($ints);
+}
+
+function formatOrderTimeAgo(string $datetime): string
+{
+    if ($datetime === '') {
+        return '';
+    }
+
+    $timestamp = strtotime($datetime);
+    if ($timestamp === false) {
+        return '';
+    }
+
+    $diff = time() - $timestamp;
+    if ($diff < 60) {
+        return 'только что';
+    }
+    if ($diff < 3600) {
+        return floor($diff / 60) . ' мин назад';
+    }
+    if ($diff < 86400) {
+        return floor($diff / 3600) . ' ч назад';
+    }
+
+    return floor($diff / 86400) . ' дн назад';
 }
 
 function ensureUsersSocialColumns(mysqli $conn): void
@@ -324,6 +385,26 @@ function getDbConnection(): mysqli
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            artist_user_id INT UNSIGNED DEFAULT NULL,
+            artist_phone VARCHAR(20) NOT NULL,
+            buyer_phone VARCHAR(20) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT "paid",
+            service_title VARCHAR(255) NOT NULL,
+            service_category VARCHAR(255) DEFAULT NULL,
+            service_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            service_image_path VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_artist_phone (artist_phone),
+            INDEX idx_buyer_phone (buyer_phone),
+            INDEX idx_service_id (service_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
     return $conn;
 }
 
@@ -337,6 +418,8 @@ $vkLink = '';
 $saveMessage = '';
 $errorMessage = '';
 $services = [];
+$artistOrders = [];
+$artistReviews = [];
 $portfolioWorks = [];
 $allCategories = [];
 $defaultCategories = [];
@@ -687,6 +770,25 @@ try {
         }
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_action'])) {
+        $orderAction = (string) ($_POST['order_action'] ?? '');
+        if ($orderAction === 'update_order_status') {
+            $orderId = (int) ($_POST['order_id'] ?? 0);
+            $allowedStatuses = ['paid', 'in-progress', 'completed'];
+            $orderStatus = (string) ($_POST['order_status'] ?? 'paid');
+            if (!in_array($orderStatus, $allowedStatuses, true)) {
+                $orderStatus = 'paid';
+            }
+
+            if ($orderId > 0 && $userPhone !== '') {
+                $updateOrderStatus = prepareOrFail($conn, 'UPDATE artist_orders SET status = ? WHERE id = ? AND artist_phone = ?');
+                $updateOrderStatus->bind_param('sis', $orderStatus, $orderId, $userPhone);
+                $updateOrderStatus->execute();
+                redirectProfileArtistWithFlash('Статус заказа обновлён.');
+            }
+        }
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
         $name = trim((string) ($_POST['profile_name'] ?? ''));
         $about = trim((string) ($_POST['profile_description'] ?? ''));
@@ -902,6 +1004,43 @@ try {
         $services[] = $serviceRow;
     }
 
+    $ordersStmt = prepareOrFail(
+        $conn,
+        'SELECT ao.id, ao.service_title, ao.service_category, ao.service_price, ao.service_image_path, ao.status, ao.created_at,
+                COALESCE(NULLIF(TRIM(u.name), ""), ao.buyer_phone) AS buyer_name, ao.buyer_phone, u.id AS buyer_user_id
+         FROM artist_orders ao
+         LEFT JOIN users u ON u.phone = ao.buyer_phone
+         WHERE ao.artist_phone = ? AND ao.buyer_phone <> ao.artist_phone
+         ORDER BY ao.created_at DESC, ao.id DESC'
+    );
+    $ordersStmt->bind_param('s', $userPhone);
+    $ordersStmt->execute();
+    $ordersRes = $ordersStmt->get_result();
+    while ($orderRow = $ordersRes->fetch_assoc()) {
+        $artistOrders[] = $orderRow;
+    }
+
+    if ($userId > 0 && tableHasColumn($conn, 'reviews', 'user_id') && tableHasColumn($conn, 'reviews', 'reviews')) {
+        $reviewColumns = [
+            'id',
+            'reviews',
+            tableHasColumn($conn, 'reviews', 'reviewer_name') ? 'reviewer_name' : 'NULL AS reviewer_name',
+            tableHasColumn($conn, 'reviews', 'reviewer_avatar_path') ? 'reviewer_avatar_path' : 'NULL AS reviewer_avatar_path',
+            tableHasColumn($conn, 'reviews', 'reviewer_role') ? 'reviewer_role' : 'NULL AS reviewer_role',
+        ];
+
+        $reviewsStmt = prepareOrFail(
+            $conn,
+            'SELECT ' . implode(', ', $reviewColumns) . ' FROM reviews WHERE user_id = ? ORDER BY id DESC'
+        );
+        $reviewsStmt->bind_param('i', $userId);
+        $reviewsStmt->execute();
+        $reviewsRes = $reviewsStmt->get_result();
+        while ($reviewRow = $reviewsRes->fetch_assoc()) {
+            $artistReviews[] = $reviewRow;
+        }
+    }
+
     $categoriesStmt = prepareOrFail($conn, 'SELECT MIN(id) AS id, TRIM(categories) AS categories, MAX(is_default) AS is_default, MAX(COALESCE(created_by_phone, "")) AS created_by_phone FROM categories WHERE TRIM(categories) <> "" AND TRIM(categories) <> "Все" GROUP BY TRIM(categories) ORDER BY MAX(is_default) DESC, TRIM(categories) ASC');
     $categoriesStmt->execute();
     $categoriesRes = $categoriesStmt->get_result();
@@ -958,7 +1097,7 @@ try {
 }
 
 $registrationLabel = $registeredAt !== '' ? 'Дата регистрации: ' . date('d.m.Y H:i', strtotime($registeredAt)) : 'Дата регистрации: ещё не заполнена';
-$avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+$avatarSrc = htmlspecialchars(normalizeImagePath($avatarPath, 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8');
 $showNameModal = $userName === '';
 
 $socialLinks = [
@@ -1091,80 +1230,44 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
           <span class="toggle-arrow" id="ordersArrow">▼</span>
         </div>
         <div class="section-content" id="ordersContent">
-          <div class="row g-3">
-            <div class="col-12 col-lg-6">
-              <div class="order-card bg-white">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
-                <div class="order-details">
-                  <h3 class="order-title">Название услуги</h3>
-                  <p class="order-category">3D-моделирование</p>
-                  <select class="order-status">
-                    <option class="orders-status-option" value="paid">Оплачен</option>
-                    <option class="orders-status-option" value="in-progress" selected>В работе</option>
-                    <option class="orders-status-option" value="completed">Завершено</option>
-                  </select>
-                  <p class="order-price">30 000р</p>
-                  <p class="order-time">3 часа назад</p>
+          <?php if (count($artistOrders) > 0): ?>
+            <div class="row g-3">
+              <?php foreach ($artistOrders as $order): ?>
+                <div class="col-12 col-lg-6">
+                  <div class="order-card">
+                    <img src="<?php echo htmlspecialchars(trim((string) ($order['service_image_path'] ?? '')) !== '' ? (string) $order['service_image_path'] : 'src/image/Rectangle 55.png', ENT_QUOTES, 'UTF-8'); ?>" alt="Service" class="order-image">
+                    <div class="order-details">
+                      <h3 class="order-title"><?php echo htmlspecialchars((string) ($order['service_title'] ?? 'Услуга художника'), ENT_QUOTES, 'UTF-8'); ?></h3>
+                      <p class="order-category"><?php echo htmlspecialchars(trim((string) ($order['service_category'] ?? '')) !== '' ? (string) $order['service_category'] : 'Без категории', ENT_QUOTES, 'UTF-8'); ?></p>
+                      <p class="order-category">Заказчик: <?php echo htmlspecialchars((string) ($order['buyer_name'] ?? $order['buyer_phone'] ?? 'Пользователь'), ENT_QUOTES, 'UTF-8'); ?></p>
+                      <?php $buyerUserId = (int) ($order['buyer_user_id'] ?? 0); ?>
+                      <?php if ($buyerUserId > 0): ?>
+                        <p class="order-category"><a href="profile-client.php?user_id=<?php echo $buyerUserId; ?>" class="text-decoration-none">Открыть профиль заказчика</a></p>
+                      <?php endif; ?>
 
+                      <div class="d-flex align-items-center justify-content-between gap-2">
+                        <form method="post" class="m-0 flex-grow-1">
+                          <input type="hidden" name="order_action" value="update_order_status">
+                          <input type="hidden" name="order_id" value="<?php echo (int) ($order['id'] ?? 0); ?>">
+                          <select class="order-status" name="order_status" onchange="this.form.submit()">
+                            <?php $currentStatus = (string) ($order['status'] ?? 'paid'); ?>
+                            <option class="orders-status-option" value="paid" <?php echo $currentStatus === 'paid' ? 'selected' : ''; ?>>Оплачен</option>
+                            <option class="orders-status-option" value="in-progress" <?php echo $currentStatus === 'in-progress' ? 'selected' : ''; ?>>В работе</option>
+                            <option class="orders-status-option" value="completed" <?php echo $currentStatus === 'completed' ? 'selected' : ''; ?>>Завершено</option>
+                          </select>
+                        </form>
+
+                        <p class="order-price mb-0 text-end"><?php echo number_format((float) ($order['service_price'] ?? 0), 0, '.', ' '); ?>р</p>
+                      </div>
+                      <p class="order-time"><?php echo htmlspecialchars(formatOrderTimeAgo((string) ($order['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              <?php endforeach; ?>
             </div>
-            <div class="col-12 col-lg-6">
-              <div class="order-card bg-white">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
-                <div class="order-details">
-                  <h3 class="order-title">Название услуги</h3>
-                  <p class="order-category">3D-моделирование</p>
-                  <select class="order-status">
-                    <option class="orders-status-option" value="paid">Оплачен</option>
-                    <option class="orders-status-option" value="in-progress" selected>В работе</option>
-                    <option class="orders-status-option" value="completed">Завершено</option>
-                  </select>
-                  <p class="order-price">30 000р</p>
-                  <p class="order-time">3 часа назад</p>
-
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-lg-6">
-              <div class="order-card bg-white">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
-                <div class="order-details">
-                  <h3 class="order-title">Название услуги</h3>
-                  <p class="order-category">3D-моделирование</p>
-                  <select class="order-status">
-                    <option class="orders-status-option" value="paid">Оплачен</option>
-                    <option class="orders-status-option" value="in-progress" selected>В работе</option>
-                    <option class="orders-status-option" value="completed">Завершено</option>
-                  </select>
-                  <p class="order-price">30 000р</p>
-                  <p class="order-time">3 часа назад</p>
-
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-lg-6">
-              <div class="order-card bg-white">
-                <img src="src/image/Rectangle 55.png" alt="Service" class="order-image">
-                <div class="order-details">
-                  <h3 class="order-title">Название услуги</h3>
-                  <p class="order-category">3D-моделирование</p>
-                  <select class="order-status">
-                    <option class="orders-status-option" value="paid">Оплачен</option>
-                    <option class="orders-status-option" value="in-progress" selected>В работе</option>
-                    <option class="orders-status-option" value="completed">Завершено</option>
-                  </select>
-                  <p class="order-price">30 000р</p>
-                  <p class="order-time">3 часа назад</p>
-
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="text-center mt-4">
-            <button class="btn-view-all">Смотреть всё</button>
-          </div>
+          <?php else: ?>
+            <div class="alert alert-light border">Пока нет оформленных заказов.</div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -1227,7 +1330,7 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
                   <h3 class="service-title"><?php echo htmlspecialchars((string) $service['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
                   <p class="service-category"><?php echo htmlspecialchars((string) $service['category'], ENT_QUOTES, 'UTF-8'); ?></p>
                   <div class="service-bottom">
-                    <p class="service-price">от <?php echo (int) $service['price']; ?>р</p>
+                    <p class="service-price"><?php echo (int) $service['price']; ?>р</p>
                     <p class="service-time"><?php echo htmlspecialchars(date('H:i', strtotime((string) $service['created_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
                   </div>
                 </div>
@@ -1250,38 +1353,21 @@ $selectedCustomCategoriesJs = json_encode(array_values($selectedCustomCategories
         </div>
         <div class="section-content" id="reviewsContent">
           <div class="reviews-list">
-            <div class="review-card">
-              <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Ермакова Мария</h4>
-                <p class="review-text">Большое спасибо! Выполнено все быстро качественно. Буду обращаться еще.</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Елько Александр</h4>
-                <p class="review-text">Большое спасибо!</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="src/image/Ellipse 3.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Строгая Наталья</h4>
-                <p class="review-text">Выполнено все быстро качественно. Буду обращаться еще.</p>
-              </div>
-            </div>
-
-            <div class="review-card">
-              <img src="src/image/Ellipse 4.png" alt="User" class="review-avatar">
-              <div class="review-content">
-                <h4 class="review-name">Лисицин Ванечка</h4>
-                <p class="review-text">СУПЕР КЛАСС ЛАЙК РЕСПЕКТ. ОЧЕНЬ КРУТО СДЕЛАЛА И НЕ ДОРОГО. БЕРИТЕ НЕ
-                  ПОЖАЛЕЕТЕ!!!!!!!!!!!</p>
-              </div>
-            </div>
+            <?php if (count($artistReviews) > 0): ?>
+              <?php foreach ($artistReviews as $review): ?>
+                <div class="review-card">
+                  <?php $reviewAvatar = normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'); ?>
+                  <img src="<?php echo htmlspecialchars($reviewAvatar, ENT_QUOTES, 'UTF-8'); ?>" alt="User" class="review-avatar">
+                  <div class="review-content">
+                    <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
+                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) $review['reviewer_role'] : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <p class="text-white">Пока нет отзывов.</p>
+            <?php endif; ?>
           </div>
         </div>
       </div>

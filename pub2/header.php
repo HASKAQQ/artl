@@ -1,4 +1,31 @@
 <?php
+if (!function_exists('normalizeImagePath')) {
+function normalizeImagePath(string $path, string $fallback): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed) || str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+
+    if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    return ltrim($normalized, '/');
+}
+
+}
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -19,7 +46,7 @@ if ($isLoggedIn && $userPhone !== '') {
                     $stmt->bind_param('s', $userPhone);
                     $stmt->execute();
                     $row = $stmt->get_result()->fetch_assoc();
-                    $avatarPath = (string) ($row['avatar_path'] ?? '');
+                    $avatarPath = normalizeImagePath((string) ($row['avatar_path'] ?? ''), '');
                     $userRole = (string) ($row['role'] ?? 'Художник');
                 }
             }
@@ -30,12 +57,13 @@ $userRole = 'Художник';
     }
 }
 
-$avatarSrc = $avatarPath !== '' ? htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+$avatarSrc = htmlspecialchars(normalizeImagePath($avatarPath, 'src/image/Ellipse 2.png'), ENT_QUOTES, 'UTF-8');
 $profileLink = ($userRole === 'Заказчик') ? 'profile-client-edit.php' : 'profile-artist-edit.php';
 $profileMenuLabel = 'Профиль';
 if (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     $profileLink = 'admin-main.php';
     $profileMenuLabel = 'Панель';
+    $avatarSrc = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="%23000000"/></svg>';
 }
 ?>
 <header class="header border-bottom border-4" id="header">

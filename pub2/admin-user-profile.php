@@ -6,6 +6,46 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
     exit;
 }
 
+function normalizeImagePath(string $path, string $fallback): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return $fallback;
+    }
+
+    if (str_starts_with($trimmed, 'data:')) {
+        return $trimmed;
+    }
+
+    if (preg_match('~^https?://~i', $trimmed)) {
+        $urlPath = (string) (parse_url($trimmed, PHP_URL_PATH) ?? '');
+        $normalizedUrlPath = str_replace('\\', '/', $urlPath);
+
+        if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalizedUrlPath, $matches)) {
+            return ltrim((string) $matches[1], '/');
+        }
+
+        if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalizedUrlPath, $matches)) {
+            return ltrim((string) $matches[1], '/');
+        }
+
+        return $trimmed;
+    }
+
+    $normalized = str_replace('\\', '/', $trimmed);
+
+    if (preg_match('~(?:^|/)pub2/(.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    if (preg_match('~(?:^|/)(uploads/.+)$~i', $normalized, $matches)) {
+        $normalized = (string) $matches[1];
+    }
+
+    return ltrim($normalized, '/');
+}
+
+
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
     $stmt = $conn->prepare($sql);
@@ -221,7 +261,13 @@ try {
     }
 
     if (hasColumn($conn, 'reviews', 'user_id') && hasColumn($conn, 'reviews', 'reviews')) {
-        $reviewsStmt = prepareOrFail($conn, 'SELECT id, reviews FROM reviews WHERE user_id = ? ORDER BY id DESC');
+        $reviewColumns = ['id', 'reviews'];
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_name') ? 'reviewer_name' : 'NULL AS reviewer_name';
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_avatar_path') ? 'reviewer_avatar_path' : 'NULL AS reviewer_avatar_path';
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'reviewer_role') ? 'reviewer_role' : 'NULL AS reviewer_role';
+        $reviewColumns[] = hasColumn($conn, 'reviews', 'created_at') ? 'created_at' : 'NULL AS created_at';
+        $reviewOrderBy = hasColumn($conn, 'reviews', 'created_at') ? 'created_at DESC, id DESC' : 'id DESC';
+        $reviewsStmt = prepareOrFail($conn, 'SELECT ' . implode(', ', $reviewColumns) . ' FROM reviews WHERE user_id = ? ORDER BY ' . $reviewOrderBy);
         $userNumericId = (int) ($user['id'] ?? 0);
         $reviewsStmt->bind_param('i', $userNumericId);
         $reviewsStmt->execute();
@@ -236,8 +282,9 @@ try {
 
 $displayName = $user ? (string) ($user['name'] ?: 'Пользователь') : 'Профиль';
 $displayRole = $user ? (string) ($user['role'] ?: 'Художник') : 'Художник';
+$isClientRole = $displayRole === 'Заказчик';
 $displayDate = $user ? date('d.m.Y', strtotime((string) $user['registered_at'])) : '—';
-$avatarPath = $user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : 'src/image/Ellipse 2.png';
+$avatarPath = normalizeImagePath($user && !empty($user['avatar_path']) ? (string) $user['avatar_path'] : '', 'src/image/Ellipse 2.png');
 $isBlocked = $user && (int) $user['is_blocked'] === 1;
 $vkHref = $userVk !== '' ? $userVk : '';
 $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
@@ -257,7 +304,7 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
   <script src="js/main.js" defer></script>
 </head>
 
-<body>
+<body class="admin-user-profile-page">
   <?php include 'header.php'; ?>
 
   <section class="profile-section">
@@ -275,7 +322,6 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
             <a class="contact-link-btn<?php echo $vkHref === '' ? ' is-empty' : ''; ?>" <?php echo $vkHref === '' ? 'aria-disabled="true"' : 'href="' . htmlspecialchars($vkHref, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer"'; ?>><img src="src/image/icons/vk-icon.svg" alt="VK"></a>
             <a class="contact-link-btn<?php echo $emailHref === '' ? ' is-empty' : ''; ?>" <?php echo $emailHref === '' ? 'aria-disabled="true"' : 'href="' . htmlspecialchars($emailHref, ENT_QUOTES, 'UTF-8') . '"'; ?>><img src="src/image/icons/icons8-почта-100 1.svg" alt="Email" class="contact-link-email-icon"></a>
           </div>
-
         </div>
 
         <div class="profile-info col-8 col-lg-9">
@@ -305,17 +351,13 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
 
           <p class="profile-description-main"><?php echo htmlspecialchars($userAbout !== '' ? $userAbout : 'О себе не указано', ENT_QUOTES, 'UTF-8'); ?></p>
         </div>
-
       </div>
 
+<?php if (!$isClientRole): ?>
       <div class="section-collapsible" id="portfolioSection">
         <div class="section-header" onclick="toggleSection('portfolio')">
-          <div class="section-title">
-            <h2>Портфолио</h2>
-          </div>
-          <div class="header-actions">
-            <span class="toggle-arrow" id="portfolioArrow">▼</span>
-          </div>
+          <div class="section-title"><h2>Портфолио</h2></div>
+          <div class="header-actions"><span class="toggle-arrow" id="portfolioArrow">▼</span></div>
         </div>
         <div class="section-content" id="portfolioContent">
           <div class="gallary-wrapper row g-3">
@@ -333,12 +375,8 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
 
       <div class="section-collapsible" id="servicesSection">
         <div class="section-header" onclick="toggleSection('services')">
-          <div class="section-title">
-            <h2>Услуги</h2>
-          </div>
-          <div class="header-actions">
-            <span class="toggle-arrow" id="servicesArrow">▼</span>
-          </div>
+          <div class="section-title"><h2>Услуги</h2></div>
+          <div class="header-actions"><span class="toggle-arrow" id="servicesArrow">▼</span></div>
         </div>
         <div class="section-content" id="servicesContent">
           <div class="services-grid row">
@@ -352,7 +390,7 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
                       <h3 class="service-title"><?php echo htmlspecialchars((string) ($service['title'] ?? 'Услуга'), ENT_QUOTES, 'UTF-8'); ?></h3>
                       <p class="service-category"><?php echo htmlspecialchars((string) ($service['category'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?></p>
                       <div class="service-bottom">
-                        <p class="service-price">от <?php echo htmlspecialchars((string) ($service['price'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?>р</p>
+                        <p class="service-price"><?php echo htmlspecialchars((string) ($service['price'] ?? '0'), ENT_QUOTES, 'UTF-8'); ?>р</p>
                         <p class="service-time"><?php echo htmlspecialchars(formatTimeAgo((string) ($service['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></p>
                       </div>
                     </div>
@@ -362,34 +400,11 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
             <?php else: ?>
               <p>Услуги пока не добавлены.</p>
             <?php endif; ?>
-          </div></div>
-        </div>
-      </div>
-
-
-      <div class="section-collapsible" id="ordersSection">
-        <div class="section-header" onclick="toggleSection('orders')">
-          <h2>Заказы</h2>
-          <span class="toggle-arrow" id="ordersArrow">▼</span>
-        </div>
-        <div class="section-content" id="ordersContent">
-          <div class="reviews-list">
-            <?php if (count($orders) > 0): ?>
-              <?php foreach ($orders as $order): ?>
-                <div class="review-card">
-                  <img src="src/image/Ellipse 2.png" alt="Order" class="review-avatar">
-                  <div class="review-content">
-                    <h4 class="review-name">Заказ #<?php echo (int) ($order['id'] ?? 0); ?></h4>
-                    <p class="review-text">Статус: <?php echo htmlspecialchars((string) ($order['status'] ?? '—'), ENT_QUOTES, 'UTF-8'); ?><?php if (!empty($order['order_date'])): ?> · Дата: <?php echo htmlspecialchars((string) $order['order_date'], ENT_QUOTES, 'UTF-8'); ?><?php endif; ?></p>
-                  </div>
-                </div>
-              <?php endforeach; ?>
-            <?php else: ?>
-              <p>Заказов пока нет.</p>
-            <?php endif; ?>
           </div>
         </div>
       </div>
+
+      <?php endif; ?>
 
       <div class="section-collapsible" id="reviewsSection">
         <div class="section-header" onclick="toggleSection('reviews')">
@@ -401,8 +416,13 @@ $emailHref = $userEmail !== '' ? ('mailto:' . $userEmail) : '';
             <?php if (count($reviews) > 0): ?>
               <?php foreach ($reviews as $review): ?>
                 <div class="review-card">
-                  <img src="src/image/Ellipse 2.png" alt="User" class="review-avatar">
-                  <div class="review-content"><h4 class="review-name">Отзыв #<?php echo (int) ($review['id'] ?? 0); ?></h4><p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p></div>
+                  <?php $reviewAvatar = normalizeImagePath((string) ($review['reviewer_avatar_path'] ?? ''), 'src/image/Ellipse 2.png'); ?>
+                  <img src="<?php echo htmlspecialchars($reviewAvatar, ENT_QUOTES, 'UTF-8'); ?>" alt="User" class="review-avatar">
+                  <div class="review-content">
+                    <h4 class="review-name"><?php echo htmlspecialchars(trim((string) ($review['reviewer_name'] ?? '')) !== '' ? (string) $review['reviewer_name'] : ('Отзыв #' . (int) ($review['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?></h4>
+                    <p class="mb-1 text-muted"><?php echo htmlspecialchars(trim((string) ($review['reviewer_role'] ?? '')) !== '' ? (string) ($review['reviewer_role']) : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p class="review-text"><?php echo htmlspecialchars((string) ($review['reviews'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
+                  </div>
                 </div>
               <?php endforeach; ?>
             <?php else: ?>

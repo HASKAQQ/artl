@@ -8,6 +8,15 @@ $adminCategoryMessage = '';
 $adminCategoryError = '';
 $editingCategoryId = (int) ($_GET['edit_id'] ?? 0);
 $categoryCreatorUserIds = [];
+$adminReviews = [];
+$reviewSearchQuery = trim((string) ($_GET['review_q'] ?? ''));
+$totalUsersCount = 0;
+$totalArtistsCount = 0;
+$totalClientsCount = 0;
+$totalOrdersCount = 0;
+$inProgressOrdersCount = 0;
+$completedOrdersCount = 0;
+$adminReviewDeleteMessage = '';
 
 function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
 {
@@ -16,6 +25,17 @@ function prepareOrFail(mysqli $conn, string $sql): mysqli_stmt
         throw new RuntimeException('Ошибка SQL: ' . $conn->error);
     }
     return $stmt;
+}
+
+function hasColumn(mysqli $conn, string $table, string $column): bool
+{
+    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $column);
+    if ($safeTable === '' || $safeColumn === '') {
+        return false;
+    }
+    $result = $conn->query("SHOW COLUMNS FROM {$safeTable} LIKE '{$safeColumn}'");
+    return $result !== false && $result->num_rows > 0;
 }
 
 try {
@@ -36,6 +56,26 @@ try {
             is_default TINYINT(1) NOT NULL DEFAULT 1,
             created_by_phone VARCHAR(20) DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS artist_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            service_id INT UNSIGNED NOT NULL,
+            artist_user_id INT UNSIGNED DEFAULT NULL,
+            artist_phone VARCHAR(20) NOT NULL,
+            buyer_phone VARCHAR(20) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT "paid",
+            service_title VARCHAR(255) NOT NULL,
+            service_category VARCHAR(255) DEFAULT NULL,
+            service_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            service_image_path VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_artist_phone (artist_phone),
+            INDEX idx_buyer_phone (buyer_phone),
+            INDEX idx_service_id (service_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
 
@@ -69,8 +109,8 @@ try {
             $newCategory = trim((string) ($_POST['new_category'] ?? ''));
             if ($newCategory === '') {
                 $adminCategoryError = 'Введите название категории.';
-            } elseif (mb_strlen($newCategory) > 255) {
-                $adminCategoryError = 'Название категории слишком длинное.';
+            } elseif (mb_strlen($newCategory) > 30) {
+                $adminCategoryError = 'Название категории должно быть не длиннее 30 символов.';
             } else {
                 $findStmt = prepareOrFail($conn, 'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) LIMIT 1');
                 $findStmt->bind_param('s', $newCategory);
@@ -99,6 +139,8 @@ try {
             $newCategoryName = trim((string) ($_POST['edit_category_name'] ?? ''));
             if ($categoryId <= 0 || $newCategoryName === '') {
                 $adminCategoryError = 'Не удалось обновить категорию.';
+            } elseif (mb_strlen($newCategoryName) > 30) {
+                $adminCategoryError = 'Название категории должно быть не длиннее 30 символов.';
             } else {
                 $findStmt = prepareOrFail($conn, 'SELECT id FROM categories WHERE TRIM(categories) = TRIM(?) AND id <> ? LIMIT 1');
                 $findStmt->bind_param('si', $newCategoryName, $categoryId);
@@ -130,6 +172,16 @@ try {
                 $adminCategoryMessage = 'Категория удалена.';
             }
         }
+
+        if ($action === 'delete_review' && hasColumn($conn, 'reviews', 'id')) {
+            $reviewId = (int) ($_POST['review_id'] ?? 0);
+            if ($reviewId > 0) {
+                $deleteReviewStmt = prepareOrFail($conn, 'DELETE FROM reviews WHERE id = ? LIMIT 1');
+                $deleteReviewStmt->bind_param('i', $reviewId);
+                $deleteReviewStmt->execute();
+                $adminReviewDeleteMessage = 'Отзыв удален.';
+            }
+        }
     }
 
     $conn->query(
@@ -149,6 +201,34 @@ try {
         }
     }
 
+    $userStatsRes = $conn->query(
+        'SELECT
+            COUNT(*) AS total_users,
+            SUM(CASE WHEN role = "Художник" THEN 1 ELSE 0 END) AS total_artists,
+            SUM(CASE WHEN role = "Заказчик" THEN 1 ELSE 0 END) AS total_clients
+         FROM users'
+    );
+    if ($userStatsRes !== false) {
+        $userStats = $userStatsRes->fetch_assoc();
+        $totalUsersCount = (int) ($userStats['total_users'] ?? 0);
+        $totalArtistsCount = (int) ($userStats['total_artists'] ?? 0);
+        $totalClientsCount = (int) ($userStats['total_clients'] ?? 0);
+    }
+
+    $orderStatsRes = $conn->query(
+        'SELECT
+            COUNT(*) AS total_orders,
+            SUM(CASE WHEN LOWER(TRIM(status)) IN ("in_progress", "в работе", "в_работе") THEN 1 ELSE 0 END) AS in_progress_orders,
+            SUM(CASE WHEN LOWER(TRIM(status)) IN ("completed", "завершено") THEN 1 ELSE 0 END) AS completed_orders
+         FROM artist_orders'
+    );
+    if ($orderStatsRes !== false) {
+        $orderStats = $orderStatsRes->fetch_assoc();
+        $totalOrdersCount = (int) ($orderStats['total_orders'] ?? 0);
+        $inProgressOrdersCount = (int) ($orderStats['in_progress_orders'] ?? 0);
+        $completedOrdersCount = (int) ($orderStats['completed_orders'] ?? 0);
+    }
+
     $categoriesRes = $conn->query('SELECT id, TRIM(categories) AS categories, is_default, created_by_phone FROM categories WHERE TRIM(categories) <> "" ORDER BY is_default DESC, categories ASC');
     if ($categoriesRes !== false) {
         while ($row = $categoriesRes->fetch_assoc()) {
@@ -160,6 +240,51 @@ try {
                 'is_default' => (int) ($row['is_default'] ?? 0) === 1,
                 'created_by_phone' => $createdByPhone,
                 'creator_user_id' => $creatorUserId,
+            ];
+        }
+    }
+
+
+    if (hasColumn($conn, 'reviews', 'id') && hasColumn($conn, 'reviews', 'reviews') && hasColumn($conn, 'reviews', 'user_id')) {
+        $hasReviewerName = hasColumn($conn, 'reviews', 'reviewer_name');
+
+        $reviewSql = 'SELECT r.id, r.reviews, '
+            . ($hasReviewerName ? 'r.reviewer_name' : 'NULL AS reviewer_name') . ' '
+            . 'FROM reviews r '
+            . 'WHERE 1=1';
+
+        $types = '';
+        $params = [];
+
+        if ($reviewSearchQuery !== '') {
+            $reviewSql .= $hasReviewerName
+                ? ' AND (r.reviewer_name LIKE ? OR r.reviews LIKE ?)'
+                : ' AND r.reviews LIKE ?';
+            $searchLike = '%' . $reviewSearchQuery . '%';
+            if ($hasReviewerName) {
+                $types .= 'ss';
+                $params[] = $searchLike;
+                $params[] = $searchLike;
+            } else {
+                $types .= 's';
+                $params[] = $searchLike;
+            }
+        }
+
+        $reviewSql .= ' ORDER BY r.id DESC';
+
+        $reviewStmt = prepareOrFail($conn, $reviewSql);
+        if ($types !== '') {
+            $reviewStmt->bind_param($types, ...$params);
+        }
+        $reviewStmt->execute();
+        $reviewRes = $reviewStmt->get_result();
+
+        while ($reviewRow = $reviewRes->fetch_assoc()) {
+            $adminReviews[] = [
+                'id' => (int) ($reviewRow['id'] ?? 0),
+                'reviewer_name' => trim((string) ($reviewRow['reviewer_name'] ?? '')),
+                'text' => (string) ($reviewRow['reviews'] ?? ''),
             ];
         }
     }
@@ -219,16 +344,18 @@ try {
                 <div class="col-5">
                     <div class="main-admi-info">
                         <h2 class="admin-info-title">Всего пользователей:</h2>
-                        <p class="admin-info-text">Художников: <span>42</span></p>
-                        <p class="admin-info-text">Заказчиков: <span>42</span></p>
+                        <p class="admin-info-text">Пользователей: <span><?php echo (int) $totalUsersCount; ?></span></p>
+                        <p class="admin-info-text">Художников: <span><?php echo (int) $totalArtistsCount; ?></span></p>
+                        <p class="admin-info-text">Заказчиков: <span><?php echo (int) $totalClientsCount; ?></span></p>
                     </div>
                 </div>
 
                 <div class="col-5">
                     <div class="main-admi-info">
                         <h2 class="admin-info-title">Активных заказов:</h2>
-                        <p class="admin-info-text">В работе: <span>42</span></p>
-                        <p class="admin-info-text">Завершено: <span>42</span></p>
+                        <p class="admin-info-text">Всего создано: <span><?php echo (int) $totalOrdersCount; ?></span></p>
+                        <p class="admin-info-text">В работе: <span><?php echo (int) $inProgressOrdersCount; ?></span></p>
+                        <p class="admin-info-text">Завершено: <span><?php echo (int) $completedOrdersCount; ?></span></p>
                     </div>
                 </div>
 
@@ -254,7 +381,7 @@ try {
                                         <form method="post" class="d-flex gap-2 flex-wrap align-items-center">
                                             <input type="hidden" name="category_action" value="save_edit">
                                             <input type="hidden" name="category_id" value="<?php echo (int) $category['id']; ?>">
-                                            <input type="text" class="form-control" style="max-width:360px;" name="edit_category_name" maxlength="255" value="<?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                            <input type="text" class="form-control" style="max-width:360px;" name="edit_category_name" maxlength="30" value="<?php echo htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8'); ?>">
                                             <button type="submit" class="admin-btn">Сохранить</button>
                                             <a href="admin-main.php" class="admin-btn text-decoration-none" style="display:inline-flex;align-items:center;">Отмена</a>
                                         </form>
@@ -293,7 +420,7 @@ try {
                                 <td scope="row">
                                     <form method="post" class="d-flex gap-2 flex-wrap align-items-center">
                                         <input type="hidden" name="category_action" value="add">
-                                        <input type="text" name="new_category" class="form-control" style="max-width:360px;" placeholder="Новая категория" maxlength="255">
+                                        <input type="text" name="new_category" class="form-control" style="max-width:360px;" placeholder="Новая категория" maxlength="30">
                                         <button class="admin-btn" type="submit" name="add_category">Добавить категорию</button>
                                         <?php if ($adminCategoryError !== ''): ?>
                                             <span style="color:#c62828;font-weight:600;"><?php echo htmlspecialchars($adminCategoryError, ENT_QUOTES, 'UTF-8'); ?></span>
@@ -312,9 +439,9 @@ try {
             </div>
             <div class="row">
                 <div class="col-6">
-                    <div class="admin-search-wrapper ">
-                        <input type="text" class="form-control admin-search-input" placeholder="Поиск художников">
-                        <button class="admin-search-btn">
+                    <form class="admin-search-wrapper" method="get">
+                        <input type="text" name="review_q" class="form-control admin-search-input" placeholder="Поиск по имени и тексту отзыва" value="<?php echo htmlspecialchars($reviewSearchQuery, ENT_QUOTES, 'UTF-8'); ?>">
+                        <button class="admin-search-btn" type="submit">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
                                 xmlns="http://www.w3.org/2000/svg">
                                 <path
@@ -322,9 +449,17 @@ try {
                                     stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
                         </button>
-                    </div>
+                    </form>
                 </div>
             </div>
+
+            <?php if ($adminReviewDeleteMessage !== ''): ?>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="alert alert-danger admin-review-alert-inline mb-0"><?php echo htmlspecialchars($adminReviewDeleteMessage, ENT_QUOTES, 'UTF-8'); ?></div>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="container adm-cont-table">
             <div class="row">
@@ -337,34 +472,32 @@ try {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr class="align-middle">
-                                <td scope="row">Цифровая живопись</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Графический дизайн</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Иллюстрация</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Живопись и графика</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">3D-моделирование и визуализация</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Скульптура и 3D-печать</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
-                            <tr class="align-middle">
-                                <td scope="row">Каллиграфия и леттеринг</td>
-                                <td><img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt=""></td>
-                            </tr>
+                            <?php if (count($adminReviews) > 0): ?>
+                                <?php foreach ($adminReviews as $review): ?>
+                                    <tr class="align-middle">
+                                        <td scope="row">
+                                            <b><?php echo htmlspecialchars($review['reviewer_name'] !== '' ? $review['reviewer_name'] : 'Пользователь', ENT_QUOTES, 'UTF-8'); ?></b>
+                                            <br>
+                                            <?php echo htmlspecialchars($review['text'], ENT_QUOTES, 'UTF-8'); ?>
+                                        </td>
+                                        <td>
+                                            <form method="post" onsubmit="return confirm('Удалить отзыв?');">
+                                                <input type="hidden" name="category_action" value="delete_review">
+                                                <input type="hidden" name="review_id" value="<?php echo (int) $review['id']; ?>">
+                                                <input type="hidden" name="review_q" value="<?php echo htmlspecialchars($reviewSearchQuery, ENT_QUOTES, "UTF-8"); ?>">
+                                                <button type="submit" title="Удалить отзыв" style="background:transparent;border:none;padding:0;">
+                                                    <img src="src/image/icons/icons8-заблокировать-пользователя-100 1.svg" alt="">
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr class="align-middle">
+                                    <td scope="row">Отзывов пока нет.</td>
+                                    <td>—</td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>

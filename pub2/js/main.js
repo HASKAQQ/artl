@@ -30,11 +30,7 @@ if (phoneForm) {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        // Показываем код в консоли (для демонстрации)
-        console.log('=================================');
-        console.log('ВАШ КОД ПОДТВЕРЖДЕНИЯ:', data.code);
-        console.log('=================================');
-        alert('Код отправлен! Проверьте консоль браузера (F12)');
+        alert(`Код подтверждения: ${data.code}`);
 
         // Переключаемся на форму ввода кода
         const phoneStep = document.getElementById('phoneStep');
@@ -127,10 +123,7 @@ if (resendBtn && codeInputs.length > 0) {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        console.log('=================================');
-        console.log('НОВЫЙ КОД ПОДТВЕРЖДЕНИЯ:', data.code);
-        console.log('=================================');
-        alert('Новый код отправлен! Проверьте консоль браузера (F12)');
+        alert(`Новый код подтверждения: ${data.code}`);
         codeInputs.forEach(input => input.value = '');
         if (codeInputs[0]) codeInputs[0].focus();
       }
