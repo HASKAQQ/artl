@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
             echo json_encode([
                 'success' => true,
-                'message' => 'Код отправлен в SMS-сообщении на номер +' . $normalizedPhone
+                'code' => $code // В реальном приложении этого не должно быть!
             ]);
             exit;
         }
@@ -253,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             <div class="form-check mb-4">
                                 <input class="form-check-input" type="checkbox" id="termsCheck" required>
                                 <label class="form-check-label terms-label" for="termsCheck">
-                                    Я ознакомлен(а), понимаю и принимаю <a href="clients-artists.php" class="terms-link">правила для художников и заказчиков</a>
+                                    Я ознакомлен(а), понимаю и принимаю <a href="#" class="terms-link">правила для художников и заказчиков</a>
                                 </label>
                             </div>
 
@@ -263,14 +263,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                     <div class="login-card d-none" id="codeStep">
                         <h1 class="code-title">Откройте сообщения на телефоне<br>и введите код</h1>
-                        <p class="mb-3 text-center" id="smsHint">Код отправлен в SMS. Введите 5 цифр одним полем.</p>
 
                         <form id="codeForm">
-                            <div class="mb-3">
-                                <input type="text" class="form-control login-input code-input-single" maxlength="5" id="verificationCode" inputmode="numeric" autocomplete="one-time-code" placeholder="Код из SMS" required>
+                            <div class="code-inputs mb-4">
+                                <input type="text" class="code-input" maxlength="1" id="code1" required>
+                                <input type="text" class="code-input" maxlength="1" id="code2" required>
+                                <input type="text" class="code-input" maxlength="1" id="code3" required>
+                                <input type="text" class="code-input" maxlength="1" id="code4" required>
+                                <input type="text" class="code-input" maxlength="1" id="code5" required>
                             </div>
 
-                            <button type="submit" class="btn login-btn w-100 mb-3">Войти</button>
                             <button type="button" class="btn login-btn w-100" id="resendBtn">Запросить новый код</button>
                         </form>
                     </div>

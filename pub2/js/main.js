@@ -12,19 +12,14 @@ function loadComponent(url, elementId) {
 
 // Phone form submission
 const phoneForm = document.getElementById('phoneForm');
-const codeForm = document.getElementById('codeForm');
-const phoneStep = document.getElementById('phoneStep');
-const codeStep = document.getElementById('codeStep');
-const verificationCodeInput = document.getElementById('verificationCode');
-const smsHint = document.getElementById('smsHint');
-
 if (phoneForm) {
   phoneForm.addEventListener('submit', function (e) {
     e.preventDefault();
 
     const phoneInput = document.getElementById('phoneInput');
-    const phone = (phoneInput?.value || '').trim();
+    const phone = phoneInput.value;
 
+    // Отправляем запрос на сервер
     fetch('login.php', {
       method: 'POST',
       headers: {
@@ -32,79 +27,92 @@ if (phoneForm) {
       },
       body: `action=send_code&phone=${encodeURIComponent(phone)}`
     })
-      .then(response => response.json())
-      .then(data => {
-        if (!data.success) {
-          alert(data.message || 'Не удалось отправить код.');
-          return;
-        }
-
-        if (phoneStep) phoneStep.classList.add('d-none');
-        if (codeStep) codeStep.classList.remove('d-none');
-        if (verificationCodeInput) verificationCodeInput.focus();
-        if (smsHint && data.message) smsHint.textContent = data.message;
-      })
-      .catch(error => {
-        console.error('Ошибка:', error);
-        alert('Произошла ошибка. Попробуйте еще раз.');
-      });
-  });
-}
-
-if (verificationCodeInput) {
-  verificationCodeInput.addEventListener('input', function () {
-    const digitsOnly = this.value.replace(/\D/g, '').slice(0, 5);
-    this.value = digitsOnly;
-  });
-}
-
-function verifyCode() {
-  const code = (verificationCodeInput?.value || '').trim();
-
-  if (code.length !== 5) {
-    alert('Введите 5 цифр из SMS.');
-    return;
-  }
-
-  fetch('login.php', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: `action=verify_code&code=${encodeURIComponent(code)}`
-  })
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        window.location.href = data.redirect;
-      } else {
-        alert(data.message || 'Неверный код');
-        if (verificationCodeInput) {
-          verificationCodeInput.value = '';
-          verificationCodeInput.focus();
-        }
+        alert(`Код подтверждения: ${data.code}`);
+
+        // Переключаемся на форму ввода кода
+        const phoneStep = document.getElementById('phoneStep');
+        const codeStep = document.getElementById('codeStep');
+        const code1 = document.getElementById('code1');
+
+        if (phoneStep) phoneStep.classList.add('d-none');
+        if (codeStep) codeStep.classList.remove('d-none');
+        if (code1) code1.focus();
       }
     })
     .catch(error => {
       console.error('Ошибка:', error);
       alert('Произошла ошибка. Попробуйте еще раз.');
     });
+  });
 }
 
-if (codeForm) {
-  codeForm.addEventListener('submit', function (e) {
-    e.preventDefault();
-    verifyCode();
+// Code input auto-focus
+const codeInputs = document.querySelectorAll('.code-input');
+if (codeInputs.length > 0) {
+  codeInputs.forEach((input, index) => {
+    input.addEventListener('input', function () {
+      if (this.value.length === 1) {
+        if (index < codeInputs.length - 1) {
+          const nextInput = codeInputs[index + 1];
+          if (nextInput) nextInput.focus();
+        } else {
+          // Последняя цифра введена - автоматически проверяем код
+          verifyCode();
+        }
+      }
+    });
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Backspace' && this.value === '' && index > 0) {
+        const prevInput = codeInputs[index - 1];
+        if (prevInput) prevInput.focus();
+      }
+    });
   });
+}
+
+// Функция проверки кода
+function verifyCode() {
+  const code = Array.from(codeInputs).map(input => input.value).join('');
+
+  if (code.length === 5) {
+    fetch('login.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `action=verify_code&code=${encodeURIComponent(code)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Успешный вход - переходим в профиль
+        window.location.href = data.redirect;
+      } else {
+        alert(data.message || 'Неверный код');
+        // Очищаем поля
+        codeInputs.forEach(input => input.value = '');
+        if (codeInputs[0]) codeInputs[0].focus();
+      }
+    })
+    .catch(error => {
+      console.error('Ошибка:', error);
+      alert('Произошла ошибка. Попробуйте еще раз.');
+    });
+  }
 }
 
 // Resend code button
 const resendBtn = document.getElementById('resendBtn');
-if (resendBtn) {
+if (resendBtn && codeInputs.length > 0) {
   resendBtn.addEventListener('click', function () {
     const phoneInput = document.getElementById('phoneInput');
-    const phone = (phoneInput?.value || '').trim();
+    const phone = phoneInput.value;
 
+    // Повторно запрашиваем код
     fetch('login.php', {
       method: 'POST',
       headers: {
@@ -112,24 +120,18 @@ if (resendBtn) {
       },
       body: `action=send_code&phone=${encodeURIComponent(phone)}`
     })
-      .then(response => response.json())
-      .then(data => {
-        if (!data.success) {
-          alert(data.message || 'Не удалось отправить код.');
-          return;
-        }
-
-        alert(data.message || 'Новый код отправлен в SMS.');
-        if (verificationCodeInput) {
-          verificationCodeInput.value = '';
-          verificationCodeInput.focus();
-        }
-        if (smsHint && data.message) smsHint.textContent = data.message;
-      })
-      .catch(error => {
-        console.error('Ошибка:', error);
-        alert('Произошла ошибка. Попробуйте еще раз.');
-      });
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert(`Новый код подтверждения: ${data.code}`);
+        codeInputs.forEach(input => input.value = '');
+        if (codeInputs[0]) codeInputs[0].focus();
+      }
+    })
+    .catch(error => {
+      console.error('Ошибка:', error);
+      alert('Произошла ошибка. Попробуйте еще раз.');
+    });
   });
 }
 
@@ -230,18 +232,8 @@ let answers = document.querySelectorAll('.answer');
 if (questions.length > 0 && answers.length > 0) {
   questions.forEach((question, index) => {
     question.onclick = () => {
-      const isActive = question.classList.toggle('active');
-      const answer = answers[index];
-
-      answer.classList.toggle('active', isActive);
-      question.setAttribute('aria-expanded', isActive ? 'true' : 'false');
-      answer.setAttribute('aria-hidden', isActive ? 'false' : 'true');
-
-      if (isActive) {
-        answer.style.maxHeight = `${answer.scrollHeight}px`;
-      } else {
-        answer.style.maxHeight = '0px';
-      }
+      questions[index].classList.toggle('active');
+      answers[index].classList.toggle('active');
     };
   });
 }
