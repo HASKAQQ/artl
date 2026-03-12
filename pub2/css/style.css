@@ -1109,6 +1109,26 @@ body {
 }
 
 
+.code-input-single {
+  width: 100% !important;
+  height: 56px;
+  border: 1px solid #9b9b9b !important;
+  border-radius: 5px;
+  font-size: 28px;
+  letter-spacing: 6px;
+  text-align: center;
+  font-weight: 700;
+  background: #fff !important;
+}
+
+.code-input-single:focus {
+  border: 3px solid #416d92 !important;
+  outline: none;
+  box-shadow: none;
+}
+
+
+
 .rounded-circle {
   width: 46px;
 }

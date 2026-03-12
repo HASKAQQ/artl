@@ -12,14 +12,19 @@ function loadComponent(url, elementId) {
 
 // Phone form submission
 const phoneForm = document.getElementById('phoneForm');
+const codeForm = document.getElementById('codeForm');
+const phoneStep = document.getElementById('phoneStep');
+const codeStep = document.getElementById('codeStep');
+const verificationCodeInput = document.getElementById('verificationCode');
+const smsHint = document.getElementById('smsHint');
+
 if (phoneForm) {
   phoneForm.addEventListener('submit', function (e) {
     e.preventDefault();
 
     const phoneInput = document.getElementById('phoneInput');
-    const phone = phoneInput.value;
+    const phone = (phoneInput?.value || '').trim();
 
-    // Отправляем запрос на сервер
     fetch('login.php', {
       method: 'POST',
       headers: {
@@ -27,96 +32,79 @@ if (phoneForm) {
       },
       body: `action=send_code&phone=${encodeURIComponent(phone)}`
     })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        // Показываем код в консоли (для демонстрации)
-        console.log('=================================');
-        console.log('ВАШ КОД ПОДТВЕРЖДЕНИЯ:', data.code);
-        console.log('=================================');
-        alert('Код отправлен! Проверьте консоль браузера (F12)');
-
-        // Переключаемся на форму ввода кода
-        const phoneStep = document.getElementById('phoneStep');
-        const codeStep = document.getElementById('codeStep');
-        const code1 = document.getElementById('code1');
+      .then(response => response.json())
+      .then(data => {
+        if (!data.success) {
+          alert(data.message || 'Не удалось отправить код.');
+          return;
+        }
 
         if (phoneStep) phoneStep.classList.add('d-none');
         if (codeStep) codeStep.classList.remove('d-none');
-        if (code1) code1.focus();
-      }
-    })
-    .catch(error => {
-      console.error('Ошибка:', error);
-      alert('Произошла ошибка. Попробуйте еще раз.');
-    });
+        if (verificationCodeInput) verificationCodeInput.focus();
+        if (smsHint && data.message) smsHint.textContent = data.message;
+      })
+      .catch(error => {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка. Попробуйте еще раз.');
+      });
   });
 }
 
-// Code input auto-focus
-const codeInputs = document.querySelectorAll('.code-input');
-if (codeInputs.length > 0) {
-  codeInputs.forEach((input, index) => {
-    input.addEventListener('input', function () {
-      if (this.value.length === 1) {
-        if (index < codeInputs.length - 1) {
-          const nextInput = codeInputs[index + 1];
-          if (nextInput) nextInput.focus();
-        } else {
-          // Последняя цифра введена - автоматически проверяем код
-          verifyCode();
-        }
-      }
-    });
-
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Backspace' && this.value === '' && index > 0) {
-        const prevInput = codeInputs[index - 1];
-        if (prevInput) prevInput.focus();
-      }
-    });
+if (verificationCodeInput) {
+  verificationCodeInput.addEventListener('input', function () {
+    const digitsOnly = this.value.replace(/\D/g, '').slice(0, 5);
+    this.value = digitsOnly;
   });
 }
 
-// Функция проверки кода
 function verifyCode() {
-  const code = Array.from(codeInputs).map(input => input.value).join('');
+  const code = (verificationCodeInput?.value || '').trim();
 
-  if (code.length === 5) {
-    fetch('login.php', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `action=verify_code&code=${encodeURIComponent(code)}`
-    })
+  if (code.length !== 5) {
+    alert('Введите 5 цифр из SMS.');
+    return;
+  }
+
+  fetch('login.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `action=verify_code&code=${encodeURIComponent(code)}`
+  })
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        // Успешный вход - переходим в профиль
         window.location.href = data.redirect;
       } else {
         alert(data.message || 'Неверный код');
-        // Очищаем поля
-        codeInputs.forEach(input => input.value = '');
-        if (codeInputs[0]) codeInputs[0].focus();
+        if (verificationCodeInput) {
+          verificationCodeInput.value = '';
+          verificationCodeInput.focus();
+        }
       }
     })
     .catch(error => {
       console.error('Ошибка:', error);
       alert('Произошла ошибка. Попробуйте еще раз.');
     });
-  }
+}
+
+if (codeForm) {
+  codeForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    verifyCode();
+  });
 }
 
 // Resend code button
 const resendBtn = document.getElementById('resendBtn');
-if (resendBtn && codeInputs.length > 0) {
+if (resendBtn) {
   resendBtn.addEventListener('click', function () {
     const phoneInput = document.getElementById('phoneInput');
-    const phone = phoneInput.value;
+    const phone = (phoneInput?.value || '').trim();
 
-    // Повторно запрашиваем код
     fetch('login.php', {
       method: 'POST',
       headers: {
@@ -124,21 +112,24 @@ if (resendBtn && codeInputs.length > 0) {
       },
       body: `action=send_code&phone=${encodeURIComponent(phone)}`
     })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        console.log('=================================');
-        console.log('НОВЫЙ КОД ПОДТВЕРЖДЕНИЯ:', data.code);
-        console.log('=================================');
-        alert('Новый код отправлен! Проверьте консоль браузера (F12)');
-        codeInputs.forEach(input => input.value = '');
-        if (codeInputs[0]) codeInputs[0].focus();
-      }
-    })
-    .catch(error => {
-      console.error('Ошибка:', error);
-      alert('Произошла ошибка. Попробуйте еще раз.');
-    });
+      .then(response => response.json())
+      .then(data => {
+        if (!data.success) {
+          alert(data.message || 'Не удалось отправить код.');
+          return;
+        }
+
+        alert(data.message || 'Новый код отправлен в SMS.');
+        if (verificationCodeInput) {
+          verificationCodeInput.value = '';
+          verificationCodeInput.focus();
+        }
+        if (smsHint && data.message) smsHint.textContent = data.message;
+      })
+      .catch(error => {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка. Попробуйте еще раз.');
+      });
   });
 }
 
